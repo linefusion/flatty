@@ -1,4 +1,4 @@
-import { expect } from "jsr:@std/expect";
+import { expect } from "jsr:@std/expect@1.0.14";
 
 import { Token, Tokens } from "./mod.ts";
 import * as str from "./mod.ts";

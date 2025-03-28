@@ -1,4 +1,4 @@
-import { escape } from "jsr:@std/regexp/escape";
+import { escape } from "jsr:@std/regexp@1.0.1/escape";
 
 // Wrappers
 
@@ -337,7 +337,7 @@ export class Tokens {
     this.suffix = suffix ?? "";
   }
 
-  public toJSON() {
+  public toJSON(): string {
     return this.toString();
   }
 

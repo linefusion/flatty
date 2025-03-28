@@ -1,10 +1,10 @@
-import * as fs from "jsr:@std/fs";
-import * as path from "jsr:@std/path";
-import * as colors from "jsr:@std/fmt/colors";
+import * as fs from "jsr:@std/fs@1.0.15";
+import * as path from "jsr:@std/path@1.0.8";
+import * as colors from "jsr:@std/fmt@1.0.6/colors";
 import * as flatbuffers from "./flatbuffers/mod.ts";
 
-import * as vento from "jsr:@vento/vento";
-import * as eta from "jsr:@eta-dev/eta";
+import * as vento from "jsr:@vento/vento@1.12.16";
+import * as eta from "jsr:@eta-dev/eta@3.5.0";
 
 import { Command } from "jsr:@cliffy/command@1.0.0-rc.7";
 import { unindent } from "./strings/mod.ts";
@@ -290,7 +290,7 @@ export class Logger implements ILogger {
   }
 }
 
-export const log = new Logger();
+export const log: Logger = new Logger();
 
 export type Generator = (options: {
   schema?: flatbuffers.schema.parser.Schema;

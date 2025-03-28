@@ -1,6 +1,6 @@
-import { z } from "npm:zod";
-import { match } from "npm:ts-pattern";
-import * as bfbs from "npm:flatbuffers_reflection";
+import { z } from "npm:zod@3.24.2";
+import { match } from "npm:ts-pattern@5.6.2";
+import * as bfbs from "npm:flatbuffers_reflection@1.2.0";
 
 export declare namespace zs {
   type literal_input = z.input<typeof ZUtils.literal>;

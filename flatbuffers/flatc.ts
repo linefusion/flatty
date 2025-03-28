@@ -1,4 +1,4 @@
-import { $ } from "jsr:@david/dax";
+import { $ } from "jsr:@david/dax@0.42.0";
 
 export async function isInstalled() {
   try {
