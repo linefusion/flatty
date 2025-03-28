@@ -1,0 +1,56 @@
+{
+  "name": "@wolfulus/flatty",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publish": {},
+  "exports": "./mod.ts",
+  "lock": false,
+  "lint": {
+    "rules": {
+      "tags": ["jsr", "recommended"],
+      "exclude": ["no-explicit-any"]
+    }
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "tasks": {
+    "build": {
+      "dependencies": [
+        "build-x86_64-unknown-linux-gnu",
+        "build-aarch64-unknown-linux-gnu",
+        "build-x86_64-pc-windows-msvc",
+        "build-x86_64-apple-darwin",
+        "build-aarch64-apple-darwin"
+      ]
+    },
+
+    "build-x86_64-unknown-linux-gnu": "deno compile -A --config ./deno.json --output build/flatty_x86_64-unknown-linux-gnu --target x86_64-unknown-linux-gnu mod.ts",
+    "build-aarch64-unknown-linux-gnu": "deno compile -A --config ./deno.json --output build/flatty_aarch64-unknown-linux-gnu --target aarch64-unknown-linux-gnu mod.ts",
+    "build-x86_64-pc-windows-msvc": "deno compile -A --config ./deno.json --output build/flatty_x86_64-pc-windows-msvc --target x86_64-pc-windows-msvc mod.ts",
+    "build-x86_64-apple-darwin": "deno compile -A --config ./deno.json --output build/flatty_x86_64-apple-darwin --target x86_64-apple-darwin mod.ts",
+    "build-aarch64-apple-darwin": "deno compile -A --config ./deno.json --output build/flatty_aarch64-apple-darwin --target aarch64-apple-darwin mod.ts",
+
+    "dev": {
+      "dependencies": ["dev-tests", "dev-run"]
+    },
+    "dev-tests": "deno test -A --watch",
+    "dev-run": {
+      "command": "cd $INIT_CWD/examples/protocol && deno run -A --watch --config ../../deno.json ../../flatty.ts"
+    },
+
+    "install": "deno install -A -g --force --config ./deno.json flatty.ts",
+    "generate": "deno run -A --watch scripts/generate.ts"
+  },
+  "imports": {
+    "@flatty/": "./",
+    "@flatty/flatty": "./flatty.ts"
+  }
+}

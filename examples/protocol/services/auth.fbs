@@ -1,0 +1,34 @@
+namespace services.auth;
+
+table Success {
+  token: string;
+}
+
+enum Reasons : byte {
+  UnknownError,
+  InvalidCredentials,
+  AccountSuspended,
+  AccountUnverified,
+}
+
+table Failure {
+  reason:Reasons;
+}
+
+union Result {
+  Success,
+  Failure
+}
+
+table Request (request) {
+  email:string;
+  password:string;
+}
+
+table Response (response) {
+  result: Result;
+}
+
+rpc_service Service {
+  authenticate(Request):Response;
+}

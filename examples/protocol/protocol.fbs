@@ -1,0 +1,14 @@
+include "attributes/packets.fbs";
+
+include "services/auth.fbs";
+
+// Some Game Network Protocol :shrugs:
+
+file_identifier "SGNP";
+file_extension "packet";
+
+table Protocol {
+
+}
+
+root_type Protocol;
