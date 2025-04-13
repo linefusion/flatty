@@ -28,7 +28,7 @@ export class LoggerScope implements ILogger, Disposable, AsyncDisposable {
     this.logger.pop();
   }
 
-  [Symbol.asyncDispose]() {
+  [Symbol.asyncDispose](): Promise<void> {
     this.logger.pop();
     return Promise.resolve();
   }
@@ -86,18 +86,18 @@ export class Logger implements ILogger {
 
   private readonly writer = Deno.stderr;
 
-  tap(callback: (this: Logger, log: Logger) => void) {
+  tap(callback: (this: Logger, log: Logger) => void): this {
     callback.apply(log, [log]);
     return this;
   }
 
-  push() {
+  push(): this {
     this.level++;
     this.line();
     return this;
   }
 
-  pop() {
+  pop(): this {
     this.level--;
     this.line();
     return this;

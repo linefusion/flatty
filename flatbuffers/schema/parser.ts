@@ -140,6 +140,7 @@ export type ServiceCall = z.output<typeof ServiceCall>;
 export const ServiceCalls = z.array(ServiceCall);
 export type ServiceCalls = z.output<typeof ServiceCalls>;
 
+export type Service = z.output<typeof Service>;
 export const Service = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
@@ -148,11 +149,11 @@ export const Service = z.object({
   documentation: Documentation,
   file: z.string(),
 }).strict();
-export type Service = z.output<typeof Service>;
 
-export const Services = z.array(Service);
 export type Services = z.output<typeof Services>;
+export const Services = z.array(Service);
 
+export type Schema = z.output<typeof Schema>;
 export const Schema = z.object({
   meta: Meta,
   features: Features,
@@ -165,8 +166,6 @@ export const Schema = z.object({
   services: Services,
   files: Files,
 }).strict();
-
-export type Schema = z.output<typeof Schema>;
 
 export function nameFromRaw(name: string) {
   return str.tokenize(str.split(name, ".").slice(-1).join(), "_");
