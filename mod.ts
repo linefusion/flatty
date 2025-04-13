@@ -1,15 +1,22 @@
 import * as fs from "jsr:@std/fs@1.0.15";
 import * as path from "jsr:@std/path@1.0.8";
-import * as colors from "jsr:@std/fmt@1.0.6/colors";
 import * as flatbuffers from "./flatbuffers/mod.ts";
-
 import * as vento from "jsr:@vento/vento@1.12.16";
 import * as eta from "jsr:@eta-dev/eta@3.5.0";
-
+import * as metadata from "./metadata.ts";
+import { log } from "./logger.ts";
 import { Command } from "jsr:@cliffy/command@1.0.0-rc.7";
-import { unindent } from "./strings/mod.ts";
-
 import type { Schema } from "./flatbuffers/schema/parser.ts";
+import * as generator from "./generator.ts";
+export * from "./metadata.ts";
+export type * from "./metadata.ts";
+export * from "./generator.ts";
+export type * from "./generator.ts";
+export * from "./logger.ts";
+export type * from "./logger.ts";
+import * as std from "./std.ts";
+
+import swc from "npm:@swc/wasm@1.11.20";
 
 /**
  * Finds exactly one file from a given root directory.
@@ -124,197 +131,10 @@ async function inferFilesFromPath(value: string) {
   };
 }
 
-export interface ILogger {
-  line(): ILogger;
-  newline(): ILogger;
-  write(message?: unknown): ILogger;
-  neutral(message?: unknown): ILogger;
-  details(message?: unknown): ILogger;
-  info(message?: unknown): ILogger;
-  success(message?: unknown): ILogger;
-  warn(message?: unknown): ILogger;
-  error(message?: unknown): ILogger;
-}
-
-export class LoggerScope implements ILogger, Disposable, AsyncDisposable {
-  constructor(private readonly logger: Logger) {
-    this.logger.push();
-  }
-
-  [Symbol.dispose]() {
-    this.logger.pop();
-  }
-
-  [Symbol.asyncDispose]() {
-    this.logger.pop();
-    return Promise.resolve();
-  }
-
-  line(): ILogger {
-    this.logger.line();
-    return this;
-  }
-
-  newline(): ILogger {
-    this.logger.newline();
-    return this;
-  }
-
-  write(message?: unknown): ILogger {
-    this.logger.write(message);
-    return this;
-  }
-
-  neutral(message?: unknown): ILogger {
-    this.logger.neutral(message);
-    return this;
-  }
-
-  details(message?: unknown): ILogger {
-    this.logger.details(message);
-    return this;
-  }
-
-  info(message?: unknown): ILogger {
-    this.logger.info(message);
-    return this;
-  }
-
-  success(message?: unknown): ILogger {
-    this.logger.success(message);
-    return this;
-  }
-
-  warn(message?: unknown): ILogger {
-    this.logger.warn(message);
-    return this;
-  }
-
-  error(message?: unknown): ILogger {
-    this.logger.error(message);
-    return this;
-  }
-}
-
-export class Logger implements ILogger {
-  private last: (str: string) => string = colors.gray;
-  private readonly text: TextEncoder = new TextEncoder();
-  private level: number = 0;
-
-  private readonly writer = Deno.stderr;
-
-  tap(callback: (this: Logger, log: Logger) => void) {
-    callback.apply(log, [log]);
-    return this;
-  }
-
-  push() {
-    this.level++;
-    this.line();
-    return this;
-  }
-
-  pop() {
-    this.level--;
-    this.line();
-    return this;
-  }
-
-  async scope(
-    callback?: (this: LoggerScope, log: LoggerScope) => void | Promise<void>,
-  ): Promise<LoggerScope> {
-    const logger = new LoggerScope(this);
-    if (callback) {
-      await callback.apply(logger, [logger]);
-    }
-
-    return logger;
-  }
-
-  write(message?: unknown): this {
-    if (!message) {
-      return this;
-    }
-
-    if (typeof message !== "string") {
-      message = Deno.inspect(message, { colors: true });
-    }
-
-    const lines = unindent(message as string).replaceAll(
-      /\n/g,
-      "\n" + "  ".repeat(this.level),
-    );
-
-    this.writer.write(this.text.encode(this.last(lines)));
-    return this;
-  }
-
-  line(): this {
-    this.last = colors.reset;
-    return this.write("\n");
-  }
-
-  newline(): this {
-    this.last = colors.reset;
-    return this.write("\n");
-  }
-
-  neutral(message?: unknown): this {
-    this.last = colors.white;
-    return this.write(message);
-  }
-
-  details(message?: unknown): this {
-    this.last = colors.gray;
-    return this.write(message);
-  }
-
-  info(message?: unknown): this {
-    this.last = colors.blue;
-    return this.write(message);
-  }
-
-  success(message?: unknown): this {
-    this.last = colors.green;
-    return this.write(message);
-  }
-
-  warn(message?: unknown): this {
-    this.last = colors.yellow;
-    return this.write(message);
-  }
-
-  error(message?: unknown): this {
-    this.last = colors.brightRed;
-    return this.write(message);
-  }
-}
-
-export const log: Logger = new Logger();
-
-export type Generator = (options: {
-  schema?: flatbuffers.schema.parser.Schema;
-  error: (message: string) => never;
-  log: typeof log;
-  loadSchema: (schemaPath: string) => Promise<Schema>;
-  templating: {
-    eta: typeof eta;
-    vento: typeof vento;
-  };
-}) => Promise<unknown>;
-
-export function generator(impl: Generator): Generator {
-  return impl;
-}
-
-export class GeneratorError extends Error {
-}
-
-export function error(message: string): never {
-  throw new GeneratorError(message);
-}
-
 const main = new Command()
+  .name("flatty")
+  .description("Flatty code generator")
+  .version(metadata.VERSION)
   .arguments("[path:string]")
   .action(async (_, input) => {
     const { generatorPath, schemaPath } = await inferFilesFromPath(
@@ -324,16 +144,33 @@ const main = new Command()
     let schema: Schema | undefined;
 
     const loadSchema = async (schemaPath: string): Promise<Schema> => {
-      log.neutral(`Parsing schema... `);
+      const parseTask = log.task("Parsing schema");
+
       return await flatbuffers.schema.parser.fromFile(schemaPath).then(
         (schema) => {
-          log.success().write(`success`);
+          parseTask.success();
           return schema;
         },
       ).catch((err) => {
-        log.error().write(`error`);
+        parseTask.error();
         throw err;
       });
+    };
+
+    const compileSchema = async (schemaPath: string, ...args: string[]) => {
+      const compileTask = log.task(`Compiling schema`);
+
+      return await flatbuffers.flatc.execute(schemaPath, ...args).then(
+        (result) => {
+          if (result.success) {
+            compileTask.success();
+            return result.output;
+          }
+
+          compileTask.error();
+          throw new Error(result.output);
+        },
+      );
     };
 
     if (schemaPath) {
@@ -352,14 +189,50 @@ const main = new Command()
     }
 
     // Load generator
-    const generate = await import("file://" + generatorPath);
-    if (typeof generate.default !== "function") {
-      throw new Error("Generator must have an exported default function");
+
+    async function loadGenerator(generatorPath: string) {
+      const code: { code: string; diagnostics?: any[] } = <any> await swc
+        .transform(
+          await Deno.readTextFile(generatorPath),
+          {
+            filename: "meh.ts",
+            jsc: {
+              parser: {
+                syntax: "typescript",
+                tsx: false,
+              },
+              target: "es2022",
+            },
+            module: {
+              type: "es6",
+            },
+          },
+        );
+
+      if (code.diagnostics?.length) {
+        log.error().write(`error`);
+        for (const diagnostic of code.diagnostics) {
+          console.error(diagnostic);
+        }
+        throw new Error("Failed to load generator");
+      }
+
+      const generate: any = await import(
+        `data:text/javascript;base64,${btoa(code.code)}`
+      );
+
+      if (typeof generate.default !== "function") {
+        throw new Error("Generator must have an exported default function");
+      }
+
+      return generate.default;
     }
 
-    log.line().neutral(`Running generator... `);
+    const generateTask = log.task("Running generator");
 
-    await generate.default({
+    const generate = await loadGenerator(generatorPath);
+    await generate({
+      std,
       log,
       schema,
 
@@ -368,12 +241,15 @@ const main = new Command()
         vento,
       },
 
-      error,
-      loadSchema,
+      error: generator.error,
+
+      flatbuffers: {
+        loadSchema,
+        compileSchema,
+      },
     });
 
-    log.success().write(`success`);
-    log.line();
+    generateTask.success();
   });
 
 export async function run() {
@@ -394,4 +270,11 @@ export async function run() {
       logger.details(Deno.inspect(err, { colors: true }));
     });
   }
+}
+
+if (import.meta.main) {
+  run().catch((err) => {
+    console.error(err);
+    Deno.exit(1);
+  });
 }
