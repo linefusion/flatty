@@ -1,22 +1,25 @@
-import * as fs from "jsr:@std/fs@1.0.15";
-import * as path from "jsr:@std/path@1.0.8";
+import * as fs from "@std/fs";
+import * as path from "@std/path";
 import * as flatbuffers from "./flatbuffers/mod.ts";
-import * as vento from "jsr:@vento/vento@1.12.16";
-import * as eta from "jsr:@eta-dev/eta@3.5.0";
 import * as metadata from "./metadata.ts";
 import { log } from "./logger.ts";
 import { Command } from "jsr:@cliffy/command@1.0.0-rc.7";
 import type { Schema } from "./flatbuffers/schema/parser.ts";
 import * as generator from "./generator.ts";
+
 export * from "./metadata.ts";
 export type * from "./metadata.ts";
+
 export * from "./generator.ts";
 export type * from "./generator.ts";
+
 export * from "./logger.ts";
 export type * from "./logger.ts";
-import * as std from "./std.ts";
 
-import swc from "npm:@swc/wasm@1.11.20";
+import * as std from "./std.ts";
+import * as templates from "./templates.ts";
+
+import swc from "@swc/wasm";
 
 /**
  * Finds exactly one file from a given root directory.
@@ -91,9 +94,13 @@ async function inferFilesFromPath(value: string) {
       path.basename(targetPath) + ".fbs",
       "*.fbs",
     ]);
+
     generatorPath = await findOneFile(targetPath, [
+      path.basename(schemaPath, ".fbs") + ".tsx",
       path.basename(schemaPath, ".fbs") + ".ts",
+      path.basename(targetPath) + ".tsx",
       path.basename(targetPath) + ".ts",
+      "*.tsx",
       "*.ts",
     ]).catch(() => undefined);
   } else if (targetInfo.isFile) {
@@ -101,8 +108,11 @@ async function inferFilesFromPath(value: string) {
       // Input is a schema file, try find .ts
       schemaPath = targetPath;
       generatorPath = await findOneFile(targetPath, [
+        path.basename(schemaPath, ".fbs") + ".tsx",
         path.basename(schemaPath, ".fbs") + ".ts",
+        path.basename(targetPath) + ".tsx",
         path.basename(targetPath) + ".ts",
+        "*.tsx",
         "*.ts",
       ]).catch(() => undefined);
     } else if (path.extname(targetPath) === ".ts") {
@@ -110,6 +120,14 @@ async function inferFilesFromPath(value: string) {
       generatorPath = targetPath;
       schemaPath = await findOneFile(targetPath, [
         path.basename(generatorPath, ".ts") + ".fbs",
+        path.basename(targetPath) + ".fbs",
+        "*.fbs",
+      ]);
+    } else if (path.extname(targetPath) === ".tsx") {
+      // Input is a generator file, try find .fbs
+      generatorPath = targetPath;
+      schemaPath = await findOneFile(targetPath, [
+        path.basename(generatorPath, ".tsx") + ".fbs",
         path.basename(targetPath) + ".fbs",
         "*.fbs",
       ]);
@@ -189,25 +207,27 @@ const main = new Command()
     }
 
     // Load generator
-
     async function loadGenerator(generatorPath: string) {
       const code: { code: string; diagnostics?: any[] } = <any> await swc
-        .transform(
-          await Deno.readTextFile(generatorPath),
-          {
-            filename: "meh.ts",
-            jsc: {
-              parser: {
-                syntax: "typescript",
-                tsx: false,
+        .transform(await Deno.readTextFile(generatorPath), {
+          filename: generatorPath,
+          jsc: {
+            parser: {
+              syntax: "typescript",
+              tsx: generatorPath.endsWith(".tsx"),
+            },
+            transform: {
+              react: {
+                runtime: "automatic",
+                importSource: "react",
               },
-              target: "es2022",
             },
-            module: {
-              type: "es6",
-            },
+            target: "es2022",
           },
-        );
+          module: {
+            type: "es6",
+          },
+        });
 
       if (code.diagnostics?.length) {
         log.error().write(`error`);
@@ -236,10 +256,7 @@ const main = new Command()
       log,
       schema,
 
-      templating: {
-        eta,
-        vento,
-      },
+      templates,
 
       error: generator.error,
 

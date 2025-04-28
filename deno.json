@@ -14,7 +14,9 @@
     }
   },
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
   },
   "fmt": {
     "useTabs": false,
@@ -31,9 +33,9 @@
     },
     "dev-tests": "deno test -A --watch",
     "dev-run": {
-      "command": "cd $INIT_CWD/examples/protocol && deno run -A --watch --config ../../deno.json ../../flatty.ts"
+      "command": "cd $INIT_CWD/examples/protocol && deno run -A --watch --config ../../deno.json ../../mod.ts"
     },
-    "install": "deno install -A -g --force --config ./deno.json flatty.ts",
+    "install": "deno install -A -g --force --config ./deno.json mod.ts",
     "generate": "deno run -A --watch scripts/generate.ts"
   },
   "imports": {
@@ -84,6 +86,22 @@
     "@std/ulid": "jsr:@std/ulid@1.0.0",
     "@std/uuid": "jsr:@std/uuid@1.0.6",
     "@std/webgpu": "jsr:@std/webgpu@0.224.8",
-    "@std/yaml": "jsr:@std/yaml@1.0.5"
+    "@std/yaml": "jsr:@std/yaml@1.0.5",
+
+    "@types/mustache": "npm:@types/mustache@^4.2.5",
+    "@types/nunjucks": "npm:@types/nunjucks@^3.2.6",
+    "@types/react": "npm:@types/react@^19.1.2",
+    "@types/react-dom": "npm:@types/react-dom@^19.1.2",
+    "@eta-dev/eta": "jsr:@eta-dev/eta@^3.5.0",
+    "@swc/wasm": "npm:@swc/wasm@^1.11.22",
+    "@vento/vento": "jsr:@vento/vento@^1.12.16",
+    "liquidjs": "npm:liquidjs@^10.21.0",
+    "mustache": "npm:mustache@^4.2.0",
+    "nunjucks": "npm:nunjucks@^3.2.4",
+    "react": "npm:react@^19.1.0",
+    "react-dom": "npm:react-dom@^19.1.0",
+    "tsxt": "npm:tsxt@^0.0.4",
+    "underscore": "npm:underscore@^1.13.7",
+    "handlebars": "npm:handlebars@^4.7.8"
   }
 }
