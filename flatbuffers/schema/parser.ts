@@ -1,12 +1,12 @@
-import "npm:tslib@2.8.1";
-import "npm:flatbuffers@25.2.10";
+import "tslib";
+import "flatbuffers";
 
-import outdent from "jsr:@cspotcode/outdent@0.8.0";
+import outdent from "@cspotcode/outdent";
 
 import * as str from "../../strings/mod.ts";
-import * as path from "jsr:@std/path@1.0.8";
+import * as path from "@std/path";
 
-import { z } from "npm:zod@3.24.2";
+import { z } from "zod";
 import { ZUtils } from "../_utils.ts";
 
 import * as Raw from "./raw.ts";

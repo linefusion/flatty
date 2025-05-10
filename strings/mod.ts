@@ -1,4 +1,4 @@
-import { escape } from "jsr:@std/regexp@1.0.1/escape";
+import { escape } from "@std/regexp/escape";
 
 // Wrappers
 
@@ -154,40 +154,78 @@ export function indent(
   return self
     .split("\n")
     .map((line) => padding + line)
+    .map((line) => line.trim().length == 0 ? "" : line)
     .join("\n");
+}
+
+export type Line = {
+  indent: number;
+  value: string;
+};
+
+export function linesOf(value: string, tabSize: number = 2): Line[] {
+  const tab = " ".repeat(tabSize);
+  return value
+    .split("\n")
+    .map((line) => {
+      const match = line.match(/^(?<indent>(?:\p{Zs}|\t)*)(?<value>.*)/u);
+      const indent = match?.groups?.indent.replaceAll(/\t/g, tab)?.length ?? 0;
+      const value = match?.groups?.value ?? "";
+      return {
+        indent,
+        value,
+      };
+    });
+}
+
+export function indentOf(lines: Line[]): number {
+  return Math.min(
+    ...lines.filter(({ value }) => value.length != 0)
+      .map((line) => line.indent),
+  );
 }
 
 export function unindent(
-  self: string,
+  value: string,
   tabSize: number = 2,
 ): string {
-  const tab = " ".repeat(tabSize);
-  const lines = self
-    .split("\n")
-    .map((line) => {
-      const match = line.match(/^(?<indent>(?:\p{Zs}|\t)*)(?<contents>.*)/u);
-      const indent = match?.groups?.indent.replaceAll(/\t/g, tab);
-      const size = indent?.length ?? 0;
-      const contents = match?.groups?.contents;
-      return {
-        size,
-        indent,
-        contents,
-      };
-    });
+  const lines = linesOf(value, tabSize);
+  const indent = indentOf(lines);
 
-  const min = Math.min(
-    ...lines.filter(({ contents }) => contents?.length != 0)
-      .map((line) => line.size),
-  );
+  const last = lines.length - 1;
 
   return lines
-    .map((line) => {
-      const indent = line.indent?.slice(min) ?? "";
-      return indent + line.contents;
-    })
+    .map((line) =>
+      (" ".repeat(Math.max(line.indent - indent, 0)) ?? "") + line.value
+    )
+    .filter((l, i) => ((i == 0 || i == last) ? l.length != 0 : true))
     .join("\n");
 }
+
+export const u = (
+  template: TemplateStringsArray,
+  ...substitutions: unknown[]
+) => {
+  const raw = String.raw(
+    template,
+    ...substitutions.map((_, index) => `\${${index}}`),
+  );
+
+  const indent = indentOf(linesOf(raw));
+
+  let parts = Array.from(template);
+  let output: string[] = [];
+
+  while (parts.length > 0) {
+    const part = parts.shift();
+    const lines = part?.split("\n") ?? [];
+    output.push(part!);
+  }
+
+  console.log(Deno.inspect({ output }, { breakLength: 1, colors: true }));
+
+  return output.join("");
+};
 
 // Starts and ends with
 

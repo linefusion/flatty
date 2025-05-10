@@ -11,6 +11,7 @@
 /// <reference types="@types/nunjucks" />
 
 /// <reference types="underscore" />
+/// <reference types="@types/underscore" />
 
 /// <reference types="mustache" />
 /// <reference types="@types/mustache" />

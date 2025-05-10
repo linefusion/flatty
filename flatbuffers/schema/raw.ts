@@ -1,12 +1,12 @@
-import "npm:tslib@2.8.1";
-import "npm:flatbuffers@25.2.10";
+import "tslib";
+import "flatbuffers";
 
-import * as path from "jsr:@std/path@1.0.8";
+import * as path from "@std/path";
 
-import { z } from "npm:zod@3.24.2";
+import { z } from "zod";
 
-import * as fbs from "npm:flatbuffers@25.2.10";
-import * as bfbs from "npm:flatbuffers_reflection@1.2.0";
+import * as fbs from "flatbuffers";
+import * as bfbs from "flatbuffers_reflection";
 
 import { ZUtils } from "../_utils.ts";
 import { flatc } from "../mod.ts";

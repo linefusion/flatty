@@ -1,4 +1,4 @@
-import * as colors from "jsr:@std/fmt@1.0.6/colors";
+import * as colors from "@std/fmt/colors";
 
 import { unindent } from "./strings/mod.ts";
 
@@ -125,14 +125,20 @@ export class Logger implements ILogger {
 
     const lineCount = (message as string).split("\n").length;
 
-    const lines =
+    let lines =
       (lineCount > 1 ? unindent(message as string) : message as string)
         .replaceAll(
           /\n/g,
           "\n" + "  ".repeat(this.level),
         );
 
-    this.writer.write(this.text.encode(this.last(lines)));
+    if (message == "\n") {
+      lines = "\n";
+    }
+
+    if (this.writer && this.writer.writable) {
+      this.writer.write(this.text.encode(this.last(lines)));
+    }
     return this;
   }
 

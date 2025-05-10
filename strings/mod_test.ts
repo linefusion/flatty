@@ -1,7 +1,13 @@
-import { expect } from "jsr:@std/expect@1.0.14";
+import { expect } from "@std/expect";
 
 import { Token, Tokens } from "./mod.ts";
 import * as str from "./mod.ts";
+
+function line(
+  ln = new Error().stack?.split("\n").slice(1).at(1)?.split(" at ")?.at(1),
+) {
+  return ln ?? "unknown line";
+}
 
 Deno.test("strings.tokens", () => {
   const tests = [
@@ -137,6 +143,146 @@ Deno.test("strings.isBlank", () => {
   expect(str.isBlank("\r\na")).toBe(false);
 });
 
+Deno.test("indentOf", () => {
+  const cases: any[][] = [
+    [line(), 0, "hello world"],
+    [line(), 2, "  hello world"],
+    [line(), 4, "    hello world"],
+    [line(), 0, "\nhello world"],
+    [line(), 0, "\nhello\n  world"],
+    [line(), 0, "hello\n  world"],
+    [line(), 2, "  hello\n    world"],
+    [line(), 4, "    hello world"],
+    [line(), 2, "\n  hello\n    world\n      "],
+    [line(), 0, "\n  hello\n    \n           \nworld\n      "],
+    [line(), 2, "\n    hello\n    \n           \n  world\n      "],
+    [line(), 2, "\thello"],
+    [line(), 4, "  \thello"],
+    [line(), 4, "\thello", 4],
+    [line(), 6, "  \thello", 4],
+  ];
+
+  for (const [ln, expected, ...args] of cases) {
+    const result = str.indentOf(str.linesOf(args[0], args[1] ?? 2));
+    expect(result, ln).toBe(expected);
+  }
+});
+
+Deno.test("uindent", () => {
+  const cases: [string, string, string][] = [
+    [
+      line(),
+      "hello world",
+      "hello world",
+    ],
+    [
+      line(),
+      "hello\nworld",
+      "hello\nworld",
+    ],
+    [
+      line(),
+      "hello\n  world",
+      "hello\n  world",
+    ],
+    [
+      line(),
+      "hello\n    world",
+      "hello\n    world",
+    ],
+    [
+      line(),
+      "hello\n  world\n  ",
+      "hello\n  world\n  ",
+    ],
+    [
+      line(),
+      "hello\n    world\n    ",
+      "hello\n    world\n    ",
+    ],
+    [
+      line(),
+      "hello\n  world\n    ",
+      "hello\n  world\n    ",
+    ],
+    [
+      line(),
+      "hello\n    world\n  ",
+      "hello\n    world\n  ",
+    ],
+    [
+      line(),
+      "\thello",
+      "hello",
+    ],
+    [
+      line(),
+      "\t\thello",
+      "hello",
+    ],
+    [
+      line(),
+      "\t\thello",
+      "hello",
+    ],
+    [
+      line(),
+      "\t\t\thello",
+      "hello",
+    ],
+    [
+      line(),
+      "\n    hello\n    world\n  ",
+      "hello\nworld",
+    ],
+    [
+      line(),
+      "hello\n    world\n  ",
+      "hello\n    world\n  ",
+    ],
+    [
+      line(),
+      "hello\n    world",
+      "hello\n    world",
+    ],
+    [
+      line(),
+      "\n    hello world\n  ",
+      "hello world",
+    ],
+    [
+      line(),
+      "\n    hello world\n  ",
+      "hello world",
+    ],
+    [
+      line(),
+      "\n    hello world\n  ",
+      "hello world",
+    ],
+  ];
+
+  for (const index in cases) {
+    const [ln, input, expected] = cases[index];
+    expect(str.unindent(input), ln).toBe(
+      expected,
+    );
+  }
+});
+
+Deno.test("strings.u", () => {
+  str.u`
+    hello
+    world
+  `;
+
+  str.u`
+    hello
+      ${"world"}
+  `;
+});
+
+/*
 Deno.test("strings.isLetter*", () => {
   throw new Error("Not implemented");
 });
@@ -208,6 +354,7 @@ Deno.test("strings.toLowerCase", () => {
 Deno.test("strings.toUpperCase", () => {
   throw new Error("Not implemented");
 });
+*/
 
 /*
 void trim_left(std::string &s);

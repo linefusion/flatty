@@ -3,7 +3,7 @@ import * as path from "@std/path";
 import * as flatbuffers from "./flatbuffers/mod.ts";
 import * as metadata from "./metadata.ts";
 import { log } from "./logger.ts";
-import { Command } from "jsr:@cliffy/command@1.0.0-rc.7";
+import { Command } from "@cliffy/command";
 import type { Schema } from "./flatbuffers/schema/parser.ts";
 import * as generator from "./generator.ts";
 
@@ -20,6 +20,7 @@ import * as std from "./std.ts";
 import * as templates from "./templates.ts";
 
 import swc from "@swc/wasm";
+import { logger } from "handlebars";
 
 /**
  * Finds exactly one file from a given root directory.
@@ -240,7 +241,6 @@ const main = new Command()
       const generate: any = await import(
         `data:text/javascript;base64,${btoa(code.code)}`
       );
-
       if (typeof generate.default !== "function") {
         throw new Error("Generator must have an exported default function");
       }
@@ -290,8 +290,8 @@ export async function run() {
 }
 
 if (import.meta.main) {
-  run().catch((err) => {
-    console.error(err);
-    Deno.exit(1);
-  });
+  // Cannot be awaited, hangs because of module loading
+  run()
+    .then(() => Deno.exit(0))
+    .catch((err) => Deno.exit(1));
 }

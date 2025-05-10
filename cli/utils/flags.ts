@@ -1,5 +1,3 @@
-import { $ } from "jsr:@david/dax@0.42.0";
-
 export type Flags = {
   [name: string]: (...args: string[]) => string[];
 };

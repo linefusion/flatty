@@ -11,7 +11,14 @@
       "cwd": "${workspaceFolder}",
       "env": {},
       "runtimeExecutable": "C:\\Users\\wolfu\\scoop\\shims\\deno.EXE",
-      "runtimeArgs": ["test", "--unstable", "--inspect-wait", "--allow-all"],
+      "runtimeArgs": [
+        "run",
+        "--unstable",
+        "--inspect-wait",
+        "--allow-all",
+        "mod.ts",
+        "examples/protocol"
+      ],
       "attachSimplePort": 9229
     }
   ]

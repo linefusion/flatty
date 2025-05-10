@@ -1,13 +1,13 @@
-import { $ } from "jsr:@david/dax@0.42.0";
-import { crypto } from "jsr:@std/crypto@1.0.4";
-import { encodeHex } from "jsr:@std/encoding@1.0.8/hex";
-import * as fs from "jsr:@std/fs@1.0.15";
-import * as path from "jsr:@std/path@1.0.8";
-import { assert } from "jsr:@std/assert@1.0.12";
-import * as semver from "jsr:@std/semver@1.0.5";
+import { $ } from "@david/dax";
+import { crypto } from "@std/crypto";
+import { encodeHex } from "@std/encoding/hex";
+import * as fs from "@std/fs";
+import * as path from "@std/path";
+import { assert } from "@std/assert";
+import * as semver from "@std/semver";
 import { unindent } from "../strings/mod.ts";
 
-import * as zip from "jsr:@quentinadam/zip@0.1.4";
+import * as zip from "@quentinadam/zip";
 
 function isFullfilled<T>(
   value: PromiseSettledResult<T>,
@@ -37,6 +37,7 @@ export async function build(release?: semver.ReleaseType) {
     triplet,
     extension,
     zip: `./build/${output}.zip`,
+    // executable: "C:\\Users\\wolfu\\AppData\\Local\\.xmake\\packages\\f\\flatty\\0.0.8\\aed3e500df8245e5acebd63f3534d6a8\\bin\\flatty.exe",
     executable: `./build/${output}${extension}`,
     checksum: `./build/${output}.sha256`,
   }));
@@ -156,6 +157,55 @@ export async function build(release?: semver.ReleaseType) {
     hashes.filter(isFullfilled)
       .map((hash) => `${hash.value.hash}  ./${hash.value.filename}`)
       .join("\n"),
+  );
+
+  const hashOf = (filename: string) =>
+    hashes.filter(isFullfilled).find((h) =>
+      h.value.filename.indexOf(filename) >= 0
+    )?.value.hash;
+
+  await Deno.writeTextFile(
+    "./build/xmake.lua",
+    unindent(`
+      package("flatty", function()
+
+        set_kind("binary")
+        set_homepage("https://github.com/linefusion/flatty")
+        set_description("Flatty Code Generator")
+
+        if is_host("windows") then
+          set_urls("https://github.com/linefusion/flatty/releases/download/v$(version)/flatty-windows-x86_64.zip")
+          add_versions("${version}", "${hashOf("windows-x86_64")}")
+        elseif is_host("linux") then
+          if is_arch("arm64") then
+            set_urls("https://github.com/linefusion/flatty/releases/download/v$(version)/flatty-linux-aarch64.zip")
+            add_versions("${version}", "${hashOf("linux-aarch64")}")
+          else
+            set_urls("https://github.com/linefusion/flatty/releases/download/v$(version)/flatty-linux-x86_64.zip")
+            add_versions("${version}", "${hashOf("linux-x86_64")}")
+          end
+        elseif is_host("macosx") then
+          if is_arch("arm64") then
+            set_urls("https://github.com/linefusion/flatty/releases/download/v$(version)/flatty-macos-aarch64.zip")
+            add_versions("${version}", "${hashOf("macos-aarch64")}")
+          else
+            set_urls("https://github.com/linefusion/flatty/releases/download/v$(version)/flatty-macos-x86_64.zip")
+            add_versions("${version}", "${hashOf("macos-x86_64")}")
+          end
+        end
+
+        on_install("windows", "linux", "macosx", function (package)
+          os.cp("*", package:installdir("bin"))
+          os.cp("*", package:installdir("tools"))
+        end)
+
+        on_test(function (package)
+          os.execv("flatty", {"--version"})
+        end)
+
+      end)
+
+    `),
   );
 
   console.log(`Built version: ${version}`);

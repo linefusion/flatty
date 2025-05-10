@@ -1,6 +1,6 @@
-import { $ } from "jsr:@david/dax@0.42.0";
+import { $ } from "@david/dax";
 import { build } from "./build.ts";
-import { ReleaseType } from "jsr:@std/semver@1.0.5/types";
+import { ReleaseType } from "@std/semver/types";
 
 async function succeeds(p: Promise<any>) {
   try {

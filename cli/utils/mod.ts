@@ -1,5 +1,5 @@
-import { match, P } from "npm:ts-pattern@5.6.2";
-import { $ } from "jsr:@david/dax@0.42.0";
+import { match, P } from "ts-pattern";
+import { $ } from "@david/dax";
 
 export type TypeSerializer<Type = any> = (
   value: Type,

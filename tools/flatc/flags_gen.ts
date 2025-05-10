@@ -1,8 +1,8 @@
-import vento from "jsr:@vento/vento@1.12.16";
-import { match, P } from "npm:ts-pattern@5.6.2";
+import vento from "@vento/vento";
+import { match, P } from "ts-pattern";
 
-import { $ } from "jsr:@david/dax@0.42.0";
-import { version } from "npm:meriyah@6.0.5";
+import { $ } from "@david/dax";
+import { version } from "meriyah";
 
 const versionString = await $`flatc --version`.lines();
 
