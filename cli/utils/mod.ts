@@ -1,5 +1,5 @@
 import { match, P } from "ts-pattern";
-import { $ } from "@david/dax";
+import type { $ } from "@david/dax";
 
 export type TypeSerializer<Type = any> = (
   value: Type,
@@ -68,13 +68,14 @@ export type ParametersFromAction<Action extends Parameter<any, any>[]> =
       & (First extends Argument<infer Name, infer Serializer>
         ? { [K in Name]: TypeFromSerializer<Serializer> }
         : never)
-      & (Rest extends Parameter<any, any>[] ? ParametersFromAction<Rest> : {})
+      & (Rest extends Parameter<any, any>[] ? ParametersFromAction<Rest>
+        : Record<string, never>)
     : Action extends [infer First] ? (
         (First extends Argument<infer Name, infer Serializer>
           ? { [K in Name]: TypeFromSerializer<Serializer> }
-          : never)
+          : Record<string, never>)
       )
-    : {};
+    : Parameter<any, any>[];
 
 export type Build<
   Action extends Parameter<any, any>[],
@@ -84,7 +85,7 @@ export type Build<
 
 export class Builder<
   Action extends Parameter<any, any>[],
-  Commands extends Record<string, any>,
+  Commands extends Record<string, any> = Record<string, any>,
 > {
   action<Action extends Parameter<any, any>[]>(..._args: Action): Builder<
     Action,
@@ -254,7 +255,9 @@ export function action(...args: (NamedAggregator<any, any> | string)[]) {
   };
 }
 
-export function cli<Data extends WrapperData>(data: Data): Builder<[], {}> {
+export function cli<Data extends WrapperData>(
+  data: Data,
+): Builder<[], Record<string, any>> {
   data = {
     ...data,
     argument: data.argument ?? defaultArgumentWrapper,

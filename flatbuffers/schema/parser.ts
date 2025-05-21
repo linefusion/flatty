@@ -15,19 +15,22 @@ import * as Raw from "./raw.ts";
  * Schema Processing
  */
 
-export const AttributeKey = z.string();
+const _AttributeKey = z.string();
 export type AttributeKey = z.output<typeof AttributeKey>;
+export const AttributeKey: typeof _AttributeKey = _AttributeKey;
 
-export const AttributeValue = z.array(z.unknown());
+const _AttributeValue = z.array(z.unknown());
 export type AttributeValue = z.output<typeof AttributeValue>;
+export const AttributeValue: typeof _AttributeValue = _AttributeValue;
 
-export const Attributes = z.record(
+const _Attributes = z.record(
   AttributeKey,
   AttributeValue,
 );
 export type Attributes = z.output<typeof Attributes>;
+export const Attributes: typeof _Attributes = _Attributes;
 
-export const TypeInfo = z.object({
+const _TypeInfo = z.object({
   type: z.string(),
   size: z.number().int(),
   element: z.string(),
@@ -36,14 +39,16 @@ export const TypeInfo = z.object({
   length: z.number().int(),
 }).strict();
 export type TypeInfo = z.output<typeof TypeInfo>;
+export const TypeInfo: typeof _TypeInfo = _TypeInfo;
 
-export const Documentation = z.object({
+const _Documentation = z.object({
   text: z.string(),
   lines: z.array(z.string()),
 }).strict();
 export type Documentation = z.output<typeof Documentation>;
+export const Documentation: typeof _Documentation = _Documentation;
 
-export const EnumValue = z.object({
+const _EnumValue = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
   type: TypeInfo,
@@ -52,8 +57,9 @@ export const EnumValue = z.object({
   documentation: Documentation,
 }).strict();
 export type EnumValue = z.output<typeof EnumValue>;
+export const EnumValue: typeof _EnumValue = _EnumValue;
 
-export const Enum = z.object({
+const _Enum = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
   type: TypeInfo,
@@ -63,26 +69,32 @@ export const Enum = z.object({
   file: z.string(),
 }).strict();
 export type Enum = z.output<typeof Enum>;
+export const Enum: typeof _Enum = _Enum;
 
-export const Enums = z.array(Enum);
+const _Enums = z.array(Enum);
 export type Enums = z.output<typeof Enums>;
+export const Enums: typeof _Enums = _Enums;
 
-export const Meta = z.object({
+const _Meta = z.object({
   header: z.string(),
   extension: z.string(),
 }).strict();
 export type Meta = z.output<typeof Meta>;
+export const Meta: typeof _Meta = _Meta;
 
-export const File = z.object({
+const _File = z.object({
   path: z.string(),
   includes: z.array(z.string()),
 }).strict();
+
 export type File = z.output<typeof File>;
+export const File: typeof _File = _File;
 
-export const Files = z.array(File);
+const _Files = z.array(File);
 export type Files = z.output<typeof Files>;
+export const Files: typeof _Files = _Files;
 
-export const Field = z.object({
+const _Field = z.object({
   id: z.number(),
   name: z.instanceof(str.Tokens),
   type: TypeInfo,
@@ -99,11 +111,13 @@ export const Field = z.object({
   documentation: Documentation,
 }).strict();
 export type Field = z.output<typeof Field>;
+export const Field: typeof _Field = _Field;
 
-export const Fields = z.array(Field);
+const _Fields = z.array(Field);
 export type Fields = z.output<typeof Fields>;
+export const Fields: typeof _Fields = _Fields;
 
-export const Table = z.object({
+const _Table = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
   fields: Fields,
@@ -115,19 +129,22 @@ export const Table = z.object({
   declarationFile: z.string(),
 }).strict();
 export type Table = z.output<typeof Table>;
+export const Table: typeof _Table = _Table;
 
-export const Tables = z.array(Table);
+const _Tables = z.array(Table);
 export type Tables = z.output<typeof Tables>;
+export const Tables: typeof _Tables = _Tables;
 
-export const Features = z.object({
+const _Features = z.object({
   advanced_array_features: z.boolean().default(false),
   advanced_union_features: z.boolean().default(false),
   default_vectors_as_strings: z.boolean().default(false),
   optional_scalars: z.boolean().default(false),
 }).strict();
 export type Features = typeof Features;
+export const Features: typeof _Features = _Features;
 
-export const ServiceCall = z.object({
+const _ServiceCall = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
   request: Table,
@@ -136,12 +153,13 @@ export const ServiceCall = z.object({
   documentation: Documentation,
 }).strict();
 export type ServiceCall = z.output<typeof ServiceCall>;
+export const ServiceCall: typeof _ServiceCall = _ServiceCall;
 
-export const ServiceCalls = z.array(ServiceCall);
+const _ServiceCalls = z.array(ServiceCall);
 export type ServiceCalls = z.output<typeof ServiceCalls>;
+export const ServiceCalls: typeof _ServiceCalls = _ServiceCalls;
 
-export type Service = z.output<typeof Service>;
-export const Service = z.object({
+const _Service = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
   calls: ServiceCalls,
@@ -149,12 +167,14 @@ export const Service = z.object({
   documentation: Documentation,
   file: z.string(),
 }).strict();
+export type Service = z.output<typeof Service>;
+export const Service: typeof _Service = _Service;
 
+const _Services = z.array(Service);
 export type Services = z.output<typeof Services>;
-export const Services = z.array(Service);
+export const Services: typeof _Services = _Services;
 
-export type Schema = z.output<typeof Schema>;
-export const Schema = z.object({
+const _Schema = z.object({
   meta: Meta,
   features: Features,
   root: Table.nullable().default(null),
@@ -166,6 +186,9 @@ export const Schema = z.object({
   services: Services,
   files: Files,
 }).strict();
+
+export type Schema = z.output<typeof Schema>;
+export const Schema: typeof _Schema = _Schema;
 
 export function nameFromRaw(name: string) {
   return str.tokenize(str.split(name, ".").slice(-1).join(), "_");
@@ -251,7 +274,7 @@ export function enumFromRaw(
 }
 
 export function fieldsFromRaw(
-  root: string,
+  _utilsroot: string,
   fields: Raw.Fields,
 ): Fields {
   return fields.map((field) => ({

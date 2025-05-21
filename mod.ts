@@ -20,7 +20,6 @@ import * as std from "./std.ts";
 import * as templates from "./templates.ts";
 
 import swc from "@swc/wasm";
-import { logger } from "handlebars";
 
 /**
  * Finds exactly one file from a given root directory.
@@ -199,7 +198,7 @@ const main = new Command()
     // Schema but no generator -> dump parsed schema as JSON
     if (!generatorPath && schema) {
       console.log(JSON.stringify(schema, null, 2));
-      return;
+      return Deno.exit(0);
     }
 
     // No schema and no generator -> error
@@ -241,6 +240,7 @@ const main = new Command()
       const generate: any = await import(
         `data:text/javascript;base64,${btoa(code.code)}`
       );
+
       if (typeof generate.default !== "function") {
         throw new Error("Generator must have an exported default function");
       }
@@ -248,10 +248,19 @@ const main = new Command()
       return generate.default;
     }
 
-    const generateTask = log.task("Running generator");
+    const loadingTask = log.task(
+      `Loading generator "${path.basename(generatorPath)}"`,
+    );
 
-    const generate = await loadGenerator(generatorPath);
-    await generate({
+    const userGenerator = await loadGenerator(generatorPath);
+
+    loadingTask.success();
+
+    const generatingTask = log.task(
+      `Running generator`,
+    );
+
+    await userGenerator({
       std,
       log,
       schema,
@@ -266,7 +275,7 @@ const main = new Command()
       },
     });
 
-    generateTask.success();
+    generatingTask.success();
   });
 
 export async function run() {
@@ -274,7 +283,7 @@ export async function run() {
     await main.parse(Deno.args);
   } catch (err) {
     if (!(err instanceof Error)) {
-      Deno.exit(1);
+      throw new Error("Unknown error", { cause: err });
     }
 
     await log.scope((logger) => {
@@ -293,5 +302,10 @@ if (import.meta.main) {
   // Cannot be awaited, hangs because of module loading
   run()
     .then(() => Deno.exit(0))
-    .catch((err) => Deno.exit(1));
+    .catch((err) => {
+      log.error("Flatty failed to run").line();
+      log.error("ERROR:").line();
+      console.error(Deno.inspect(err, { colors: true }));
+      Deno.exit(1);
+    });
 }

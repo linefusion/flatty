@@ -2,7 +2,6 @@ import vento from "@vento/vento";
 import { match, P } from "ts-pattern";
 
 import { $ } from "@david/dax";
-import { version } from "meriyah";
 
 const versionString = await $`flatc --version`.lines();
 

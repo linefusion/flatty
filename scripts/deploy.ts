@@ -1,6 +1,6 @@
 import { $ } from "@david/dax";
 import { build } from "./build.ts";
-import { ReleaseType } from "@std/semver/types";
+import type { ReleaseType } from "@std/semver/types";
 
 async function succeeds(p: Promise<any>) {
   try {
@@ -16,10 +16,7 @@ export async function deploy(release?: ReleaseType) {
   // Build
 
   const version = await build(release);
-
   const versionString = `v${version}`;
-
-  console.log({ version, versionString });
 
   //
   // Upload
@@ -39,6 +36,9 @@ export async function deploy(release?: ReleaseType) {
 
   // Updating latest
   await uploadLatest;
+
+  // Publish to JSR.
+  await $`deno publish --allow-slow-types`;
 }
 
 if (import.meta.main) {

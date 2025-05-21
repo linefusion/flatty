@@ -2,7 +2,6 @@
 
 Flatt but flattier.
 
-
 ## How?
 
 > schema.fbs

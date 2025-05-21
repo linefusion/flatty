@@ -25,6 +25,15 @@ export type VersionBump = "patch" | "minor" | "major";
 
 export async function build(release?: semver.ReleaseType) {
   //
+  // Deno steps
+  //
+
+  await $`deno check`;
+  await $`deno lint`;
+  await $`deno fmt --check`;
+  await $`deno test`;
+
+  //
   // Targets
 
   const targets = [
@@ -84,6 +93,7 @@ export async function build(release?: semver.ReleaseType) {
     "./metadata.ts",
     unindent(`
     export const VERSION = "${deno.version}";
+
   `),
   );
 
@@ -209,6 +219,7 @@ export async function build(release?: semver.ReleaseType) {
   );
 
   console.log(`Built version: ${version}`);
+
   return version;
 }
 
