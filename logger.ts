@@ -1,6 +1,6 @@
 import * as colors from "@std/fmt/colors";
 
-import { unindent } from "./strings/mod.ts";
+import { unindent } from "@linefusion/strings";
 
 export interface ILogger {
   line(): ILogger;

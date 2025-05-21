@@ -3,7 +3,7 @@ import "flatbuffers";
 
 import outdent from "@cspotcode/outdent";
 
-import * as str from "../../strings/mod.ts";
+import * as str from "@linefusion/strings";
 import * as path from "@std/path";
 
 import { z } from "zod";

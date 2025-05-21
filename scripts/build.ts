@@ -5,7 +5,7 @@ import * as fs from "@std/fs";
 import * as path from "@std/path";
 import { assert } from "@std/assert";
 import * as semver from "@std/semver";
-import { unindent } from "../strings/mod.ts";
+import { unindent } from "@linefusion/strings";
 
 import * as zip from "@quentinadam/zip";
 
