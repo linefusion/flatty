@@ -153,7 +153,7 @@ const env = vento();
 
 const code = await env.runString(
   /* vento */ `
-import { define } from "../../tool/flags.ts";
+import { define } from "../../../cli/utils/flags.ts";
 
 export const FlatcFlags = define({
 {{- for command of commands }}

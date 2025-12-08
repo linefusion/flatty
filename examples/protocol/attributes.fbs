@@ -1,3 +1,6 @@
 
 attribute "request";
 attribute "response";
+
+attribute "event";
+attribute "topic";

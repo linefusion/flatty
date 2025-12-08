@@ -19,7 +19,12 @@ export type * from "./logger.ts";
 import * as std from "./std.ts";
 import * as templates from "./templates.ts";
 
-import swc from "@swc/wasm";
+//import swc from "@swc/wasm";
+
+import * as esbuild from "esbuild";
+import { denoPlugins } from "esbuild_deno_loader";
+
+//import { inspect } from "node:util";
 
 /**
  * Finds exactly one file from a given root directory.
@@ -149,10 +154,59 @@ async function inferFilesFromPath(value: string) {
   };
 }
 
+async function findClosest(
+  from: string,
+  search: string,
+): Promise<string | undefined> {
+  if (!path.isAbsolute(from)) {
+    from = path.resolve(from);
+  }
+
+  const parsed = path.parse(from);
+  if (parsed.dir == parsed.root) {
+    const value = path.join(from, search);
+    if (await fs.exists(value)) {
+      return value;
+    }
+    return;
+  }
+
+  if (!await fs.exists(path.join(from))) {
+    return await findClosest(path.dirname(from), search);
+  }
+
+  const stat = await Deno.stat(from);
+  if (stat.isFile) {
+    from = path.dirname(from);
+  }
+
+  const candidate = path.join(from, search);
+  if (await fs.exists(candidate)) {
+    return candidate;
+  }
+
+  return findClosest(path.dirname(from), search);
+}
+
+/*
+async function findClosestFileUrl(
+  from: string,
+  search: string,
+): Promise<string | undefined> {
+  const value = await findClosest(from, search);
+  if (value) {
+    return path.toFileUrl(value).toString();
+  }
+}
+*/
+
 const main = new Command()
   .name("flatty")
   .description("Flatty code generator")
   .version(metadata.VERSION)
+  .option("-v, --verbose", "Verbose logging", {
+    default: false,
+  })
   .arguments("[path:string]")
   .action(async (_, input) => {
     const { generatorPath, schemaPath } = await inferFilesFromPath(
@@ -162,33 +216,33 @@ const main = new Command()
     let schema: Schema | undefined;
 
     const loadSchema = async (schemaPath: string): Promise<Schema> => {
-      const parseTask = log.task("Parsing schema");
+      await using task = log.task("Parsing schema");
 
       return await flatbuffers.schema.parser.fromFile(schemaPath).then(
         (schema) => {
-          parseTask.success();
           return schema;
         },
-      ).catch((err) => {
-        parseTask.error();
-        throw err;
+      ).catch((error) => {
+        task.error(error);
+        throw error;
       });
     };
 
     const compileSchema = async (schemaPath: string, ...args: string[]) => {
-      const compileTask = log.task(`Compiling schema`);
+      await using task = log.task(`Compiling schema`);
 
       return await flatbuffers.flatc.execute(schemaPath, ...args).then(
         (result) => {
           if (result.success) {
-            compileTask.success();
             return result.output;
           }
 
-          compileTask.error();
           throw new Error(result.output);
         },
-      );
+      ).catch((error) => {
+        task.error(error);
+        throw error;
+      });
     };
 
     if (schemaPath) {
@@ -198,7 +252,7 @@ const main = new Command()
     // Schema but no generator -> dump parsed schema as JSON
     if (!generatorPath && schema) {
       console.log(JSON.stringify(schema, null, 2));
-      return Deno.exit(0);
+      return;
     }
 
     // No schema and no generator -> error
@@ -208,26 +262,67 @@ const main = new Command()
 
     // Load generator
     async function loadGenerator(generatorPath: string) {
+      const paths = {
+        denoJson: await findClosest(generatorPath, "deno.json"),
+        denoLock: await findClosest(generatorPath, "deno.lock"),
+        nodeModules: await findClosest(generatorPath, "node_modules"),
+      };
+
+      const result = await esbuild.build({
+        entryPoints: [path.toFileUrl(generatorPath).toString()],
+        plugins: [...denoPlugins({
+          loader: "portable",
+          configPath: paths.denoJson,
+          lockPath: paths.denoLock,
+          nodeModulesDir: "auto",
+        }) as any],
+        external: ["@linefusion/flatty"],
+        sourcemap: true,
+        bundle: true,
+        write: false,
+        format: "esm",
+        target: "esnext",
+      });
+
+      if (result.errors.length > 0) {
+        throw new Error(
+          "Esbuild bundling failed: " + JSON.stringify(result.errors),
+        );
+      }
+
+      const output = result.outputFiles[0].text;
+
+      /*
+
+      const swcOptions: swc.Options = {
+        filename: generatorPath,
+        jsc: {
+          output: {
+            charset: "utf8",
+          },
+          parser: {
+            syntax: "typescript",
+            decorators: true,
+            dynamicImport: false,
+            tsx: generatorPath.endsWith(".tsx"),
+          },
+          transform: {
+            react: {
+              runtime: "automatic",
+              importSource: "react",
+            },
+          },
+          target: "es2022",
+        },
+        module: {
+          preserveImportMeta: true,
+          allowTopLevelThis: false,
+          type: "es6",
+        },
+      };
+
       const code: { code: string; diagnostics?: any[] } = <any> await swc
-        .transform(await Deno.readTextFile(generatorPath), {
-          filename: generatorPath,
-          jsc: {
-            parser: {
-              syntax: "typescript",
-              tsx: generatorPath.endsWith(".tsx"),
-            },
-            transform: {
-              react: {
-                runtime: "automatic",
-                importSource: "react",
-              },
-            },
-            target: "es2022",
-          },
-          module: {
-            type: "es6",
-          },
-        });
+        .transform(await Deno.readTextFile(generatorPath), swcOptions);
 
       if (code.diagnostics?.length) {
         log.error().write(`error`);
@@ -237,8 +332,12 @@ const main = new Command()
         throw new Error("Failed to load generator");
       }
 
+      console.log(code.code);
+
+      return;
+      */
       const generate: any = await import(
-        `data:text/javascript;base64,${btoa(code.code)}`
+        `data:text/javascript;base64,${btoa(output)}`
       );
 
       if (typeof generate.default !== "function") {
@@ -264,6 +363,16 @@ const main = new Command()
       std,
       log,
       schema,
+
+      inspect(value: unknown) {
+        console.log(Deno.inspect(value, {
+          colors: true,
+          depth: 10000,
+          showHidden: true,
+          showProxy: true,
+          sorted: true,
+        }));
+      },
 
       templates,
 
@@ -301,7 +410,6 @@ export async function run() {
 if (import.meta.main) {
   // Cannot be awaited, hangs because of module loading
   run()
-    .then(() => Deno.exit(0))
     .catch((err) => {
       log.error("Flatty failed to run").line();
       log.error("ERROR:").line();

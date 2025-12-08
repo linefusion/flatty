@@ -10,6 +10,7 @@ export type Generator = (options: {
   schema?: flatbuffers.schema.parser.Schema;
   error: (message: string) => never;
   log: typeof logger.log;
+  inspect: (value: any) => void;
   flatbuffers: {
     loadSchema: (schemaPath: string) => Promise<Schema>;
     compileSchema: (schemaPath: string, ...args: string[]) => Promise<void>;
