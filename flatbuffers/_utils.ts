@@ -31,7 +31,7 @@ export class ZUtils {
   ]);
 
   public static type() {
-    return z.nativeEnum(bfbs.BaseType).transform((value) =>
+    return z.enum(bfbs.BaseType).transform((value) =>
       match(value)
         .with(bfbs.BaseType.None, () => "none")
         .with(bfbs.BaseType.UType, () => "utype")
@@ -58,14 +58,13 @@ export class ZUtils {
 
   public static field(): z.ZodType<
     zs.field_output,
-    z.ZodTypeDef,
     zs.field_input
   > {
     return z.lazy(() =>
       z.union([
         ZUtils.literal,
         z.array(ZUtils.field()),
-        z.record(ZUtils.field()),
+        z.record(z.string(), ZUtils.field()),
       ])
     );
   }
@@ -76,16 +75,18 @@ export class ZUtils {
     const bits = Object.values(values)
       .filter((v): v is Enum[keyof Enum] & number => typeof v === "number")
       .reduce((acc, val) => acc | val, 0);
-
-    return z
-      .number()
-      .int()
-      .refine(
-        (val): val is Enum[keyof Enum] & number => (val & ~bits) === 0,
-        { message: "Invalid flags value" },
-      );
+    return this.int().refine(
+      (val): val is Enum[keyof Enum] & number => (val & ~bits) === 0,
+      { message: "Invalid flags value" },
+    );
   }
 
+  public static int() {
+    return z.union([
+      z.int(),
+      z.bigint(),
+    ]).transform((value) => parseInt(value.toString()));
+  }
   public static flag(value: number, flag: number) {
     return (value & flag) == flag;
   }

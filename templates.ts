@@ -17,7 +17,6 @@
 /// <reference types="@types/mustache" />
 
 /// <reference types="handlebars" />
-/// <reference types="@types/handlebars" />
 
 export { default as vento } from "@vento/vento";
 export * as eta from "@eta-dev/eta";

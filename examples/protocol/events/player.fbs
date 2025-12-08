@@ -1,0 +1,12 @@
+
+struct Position {
+    x: uint32;
+    y: uint32;
+    z: uint8;
+}
+
+table PlayerMovedEvent (event, topic: "player.moved") {
+    source: Position;
+    target: Position;
+    distance: float;
+}

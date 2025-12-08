@@ -45,11 +45,12 @@ export type TypeNames = typeof TypeNames;
 export const TypeInfo = z.object({
   baseType: ZUtils.type(),
   element: ZUtils.type(),
-  index: z.number().int(),
-  fixedLength: z.number().int(),
-  baseSize: z.number().int(),
-  elementSize: z.number().int(),
+  index: ZUtils.int(),
+  fixedLength: ZUtils.int(),
+  baseSize: ZUtils.int(),
+  elementSize: ZUtils.int(),
 }).strict();
+
 export type TypeInfo = z.output<typeof TypeInfo>;
 
 export const Attribute = z.object({
@@ -70,7 +71,7 @@ export const Field = z.object({
   type: TypeInfo,
   offset: z.number(),
   offset64: z.boolean(),
-  defaultInteger: z.number().int(),
+  defaultInteger: ZUtils.int(),
   defaultReal: z.number(),
   padding: z.number(),
   deprecated: z.boolean(),
@@ -102,7 +103,7 @@ export type Tables = z.output<typeof Tables>;
 
 export const EnumValue = z.object({
   name: z.string(),
-  value: z.number().int(),
+  value: ZUtils.int(),
   unionType: TypeInfo,
   attributes: Attributes,
   documentation: Documentation,
@@ -156,25 +157,32 @@ export type File = z.output<typeof File>;
 export const Files = z.array(File);
 export type Files = z.output<typeof Files>;
 
-export const Schema = ZUtils.field()
-  .pipe(
-    z.object({
-      fileIdent: z.string(),
-      fileExt: z.string(),
-      advancedFeatures: ZUtils.flags(AdvancedFeatures),
-      objects: Tables,
-      enums: Enums,
-      rootTable: Table.nullable().default(null),
-      services: Services,
-      fbsFiles: Files,
-    }).strict(),
-  );
+export const Schema = z.object({
+  rootTable: Table.nullable().default(null),
+  fileIdent: z.string(),
+  fileExt: z.string(),
+  advancedFeatures: ZUtils.flags(AdvancedFeatures),
+  objects: Tables,
+  enums: Enums,
+  services: Services,
+  fbsFiles: Files,
+}).strict();
 export type Schema = z.output<typeof Schema>;
 
 export const Parser = z
   .instanceof(bfbs.Schema)
   .transform((schema) => {
-    return Schema.parse(schema.unpack());
+    const unpacked = schema.unpack();
+    Deno.writeTextFileSync(
+      "schema.json",
+      JSON.stringify(unpacked, function (_, v) {
+        if (typeof v == "bigint") {
+          return parseInt(v.toString(), 10);
+        }
+        return v;
+      }, 2),
+    );
+    return Schema.parse(unpacked);
   });
 export type Parser = z.output<typeof Parser>;
 

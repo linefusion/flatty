@@ -14,9 +14,11 @@ export interface ILogger {
   error(message?: unknown): ILogger;
 }
 
-export interface LoggerTask {
+export interface LoggerTask extends AsyncDisposable, Disposable {
   success(): void;
-  error(): void;
+  error(reason?: Error | unknown): void;
+  [Symbol.dispose](): void;
+  [Symbol.asyncDispose](): PromiseLike<void>;
 }
 
 export class LoggerScope implements ILogger, Disposable, AsyncDisposable {
@@ -153,23 +155,53 @@ export class Logger implements ILogger {
   }
 
   task(name: string): LoggerTask {
-    const start = performance.now();
-
-    this.neutral(`${name}...`).line();
-    return {
-      success: () => {
-        const duration = (performance.now() - start).toFixed(2);
-        this
-          .neutral(`${name}... `).success("success").details(` (${duration}ms)`)
+    const taskInstance = {
+      finished: false,
+      duration: "",
+      logger: this,
+      [Symbol.dispose]() {
+        this.success();
+      },
+      [Symbol.asyncDispose]() {
+        this.success();
+        return Promise.resolve();
+      },
+      success() {
+        if (this.finished) {
+          return;
+        }
+        this.finished = true;
+        this.duration = (performance.now() - start).toFixed(2);
+        this.logger
+          .neutral(`${name}... `)
+          .success("success")
+          .details(` (${this.duration}ms)`)
           .line();
       },
-      error: () => {
-        const duration = (performance.now() - start).toFixed(2);
-        this
-          .neutral(`${name}... `).error("error").details(` (${duration}ms)`)
+      error(err: Error | unknown) {
+        if (this.finished) {
+          return;
+        }
+        this.finished = true;
+        this.duration = (performance.now() - start).toFixed(2);
+        this.logger
+          .neutral(`${name}... `)
+          .error("error")
+          .details(` (${this.duration}ms)`)
           .line();
+        if (err instanceof Error) {
+          this.logger
+            .error(err.message).line()
+            .details(err).line();
+        } else {
+          this.logger.error(err).line();
+        }
       },
     };
+
+    this.neutral(`${name}...`).line();
+    const start = performance.now();
+    return taskInstance;
   }
 
   neutral(message?: unknown): this {

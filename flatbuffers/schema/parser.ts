@@ -30,13 +30,34 @@ const _Attributes = z.record(
 export type Attributes = z.output<typeof Attributes>;
 export const Attributes: typeof _Attributes = _Attributes;
 
+const _TypePrimitive = z.object({
+  type: z.literal("primitive"),
+  data: z.string(),
+});
+
+const _TypeTable = z.object({
+  type: z.literal("table"),
+  data: z.lazy(() => _Table),
+});
+
+const _TypeStruct = z.object({
+  type: z.literal("struct"),
+  data: z.lazy(() => _Table),
+});
+
+const _TypeEnum = z.object({
+  type: z.literal("enum"),
+  data: z.lazy(() => _Enum),
+});
+
 const _TypeInfo = z.object({
   type: z.string(),
-  size: z.number().int(),
+  size: ZUtils.int(),
   element: z.string(),
-  elementSize: z.number().int(),
-  index: z.number().int(),
-  length: z.number().int(),
+  elementSize: ZUtils.int(),
+  index: ZUtils.int(),
+  length: ZUtils.int(),
+  data: z.any().nullable().optional().default(null),
 }).strict();
 export type TypeInfo = z.output<typeof TypeInfo>;
 export const TypeInfo: typeof _TypeInfo = _TypeInfo;
@@ -52,7 +73,7 @@ const _EnumValue = z.object({
   name: z.instanceof(str.Tokens),
   namespace: z.instanceof(str.Tokens),
   type: TypeInfo,
-  value: z.number().int(),
+  value: ZUtils.int(),
   attributes: Attributes,
   documentation: Documentation,
 }).strict();
@@ -95,14 +116,14 @@ export type Files = z.output<typeof Files>;
 export const Files: typeof _Files = _Files;
 
 const _Field = z.object({
-  id: z.number(),
+  id: ZUtils.int(),
   name: z.instanceof(str.Tokens),
   type: TypeInfo,
-  offset: z.number(),
+  offset: ZUtils.int(),
   offset64: z.boolean(),
-  defaultInteger: z.number().int(),
-  defaultReal: z.number(),
-  padding: z.number(),
+  defaultInteger: ZUtils.int(),
+  defaultReal: ZUtils.int(),
+  padding: ZUtils.int(),
   deprecated: z.boolean(),
   required: z.boolean(),
   optional: z.boolean(),
@@ -122,8 +143,8 @@ const _Table = z.object({
   namespace: z.instanceof(str.Tokens),
   fields: Fields,
   //isStruct: z.boolean().default(false),
-  minalign: z.number().default(0),
-  bytesize: z.number().default(0),
+  minalign: ZUtils.int().default(0),
+  bytesize: ZUtils.int().default(0),
   attributes: Attributes,
   documentation: Documentation,
   declarationFile: z.string(),
@@ -190,16 +211,25 @@ const _Schema = z.object({
 export type Schema = z.output<typeof Schema>;
 export const Schema: typeof _Schema = _Schema;
 
-export function nameFromRaw(name: string) {
+export function nameFromRaw(
+  _$: Raw.Schema,
+  name: string,
+) {
   return str.tokenize(str.split(name, ".").slice(-1).join(), "_");
 }
 
-export function namespaceFromRaw(name: string) {
+export function namespaceFromRaw(
+  _$: Raw.Schema,
+  name: string,
+) {
   const parts = str.split(name, ".");
   return str.tokenize(parts.slice(0, -1).join("."), ".");
 }
 
-export function attributesFromRaw(attributes: Raw.Attribute[]) {
+export function attributesFromRaw(
+  _$: Raw.Schema,
+  attributes: Raw.Attribute[],
+) {
   return attributes.reduce((result, attribute) => {
     const key = attribute.key as keyof typeof result;
     result[key] = result[key] ?? [];
@@ -209,6 +239,7 @@ export function attributesFromRaw(attributes: Raw.Attribute[]) {
 }
 
 export function documentationFromRaw(
+  _$: Raw.Schema,
   documentation: Raw.Documentation,
 ) {
   const text = outdent.string(documentation.join("\n"));
@@ -219,8 +250,14 @@ export function documentationFromRaw(
 }
 
 export function typeFromRaw(
+  $: Raw.Schema,
   type: Raw.TypeInfo,
 ): z.output<typeof TypeInfo> {
+  let data: any = null;
+  if (type.index >= 0) {
+    data = $.objects?.[type.index];
+  }
+
   return {
     type: type.baseType,
     size: type.baseSize,
@@ -228,60 +265,70 @@ export function typeFromRaw(
     elementSize: type.elementSize,
     index: type.index,
     length: type.fixedLength,
+    data,
   };
 }
 
 export function enumValueFromRaw(
+  $: Raw.Schema,
   item: Raw.EnumValue,
   namespace: str.Tokens,
 ): z.output<typeof EnumValue> {
   return {
-    name: nameFromRaw(item.name),
+    name: nameFromRaw($, item.name),
     namespace: namespace,
     value: item.value,
-    attributes: attributesFromRaw(item.attributes),
-    documentation: documentationFromRaw(item.documentation),
-    type: typeFromRaw(item.unionType),
+    attributes: attributesFromRaw($, item.attributes),
+    documentation: documentationFromRaw($, item.documentation),
+    type: typeFromRaw($, item.unionType),
   };
 }
 export function enumValuesFromRaw(
+  $: Raw.Schema,
   items: Raw.EnumValue[],
   namespace: str.Tokens,
 ): z.output<typeof EnumValue>[] {
-  return items.map((item) => enumValueFromRaw(item, namespace));
+  return items.map((item) => enumValueFromRaw($, item, namespace));
 }
 
-export function fileFromRaw(root: string, file: string) {
+export function fileFromRaw(
+  _$: Raw.Schema,
+  root: string,
+  file: string,
+) {
   return path.relative(root, path.join(root, file)).replaceAll("\\", "/");
 }
 
 export function enumFromRaw(
+  $: Raw.Schema,
   root: string,
   value: Raw.Enum,
 ): z.output<typeof Enum> {
   return ({
-    name: nameFromRaw(value.name),
-    namespace: namespaceFromRaw(value.name),
-    type: typeFromRaw(value.underlyingType),
+    name: nameFromRaw($, value.name),
+    namespace: namespaceFromRaw($, value.name),
+    type: typeFromRaw($, value.underlyingType),
     values: enumValuesFromRaw(
+      $,
       value.values,
-      namespaceFromRaw(value.name),
+      namespaceFromRaw($, value.name),
     ),
-    attributes: attributesFromRaw(value.attributes),
-    documentation: documentationFromRaw(value.documentation),
-    file: fileFromRaw(root, value.declarationFile),
+    attributes: attributesFromRaw($, value.attributes),
+    documentation: documentationFromRaw($, value.documentation),
+    file: fileFromRaw($, root, value.declarationFile),
   });
 }
 
 export function fieldsFromRaw(
+  $: Raw.Schema,
   _utilsroot: string,
   fields: Raw.Fields,
 ): Fields {
   return fields.map((field) => ({
     id: field.id,
-    name: nameFromRaw(field.name),
-    attributes: attributesFromRaw(field.attributes),
-    documentation: documentationFromRaw(field.documentation),
+    name: nameFromRaw($, field.name),
+    attributes: attributesFromRaw($, field.attributes),
+    documentation: documentationFromRaw($, field.documentation),
     defaultInteger: field.defaultInteger,
     defaultReal: field.defaultReal,
     deprecated: field.deprecated,
@@ -291,76 +338,85 @@ export function fieldsFromRaw(
     optional: field.optional,
     padding: field.padding,
     required: field.required,
-    type: typeFromRaw(field.type),
+    type: typeFromRaw($, field.type),
   }));
 }
 
 export function tableFromRaw(
+  $: Raw.Schema,
   root: string,
   table: Raw.Table,
+  //raw: Raw.Tables,
 ): Table {
   return ({
-    name: nameFromRaw(table.name),
-    namespace: namespaceFromRaw(table.name),
-    fields: fieldsFromRaw(root, table.fields),
-    attributes: attributesFromRaw(table.attributes),
-    documentation: documentationFromRaw(table.documentation),
-    declarationFile: fileFromRaw(root, table.declarationFile),
+    name: nameFromRaw($, table.name),
+    namespace: namespaceFromRaw($, table.name),
+    fields: fieldsFromRaw($, root, table.fields),
+    attributes: attributesFromRaw($, table.attributes),
+    documentation: documentationFromRaw($, table.documentation),
+    declarationFile: fileFromRaw($, root, table.declarationFile),
     bytesize: table.bytesize,
     minalign: table.minalign,
   });
 }
 
 export function tablesFromRaw(
+  $: Raw.Schema,
   root: string,
   tables: Raw.Tables,
 ): Tables {
-  return tables.map((table) => tableFromRaw(root, table));
+  return tables.map((table) => tableFromRaw($, root, table));
 }
 
 export function callFromRaw(
+  $: Raw.Schema,
   root: string,
   call: Raw.ServiceCall,
 ): ServiceCall {
   return ({
-    name: nameFromRaw(call.name),
-    namespace: namespaceFromRaw(call.name),
-    request: tableFromRaw(root, call.request),
-    response: tableFromRaw(root, call.response),
-    attributes: attributesFromRaw(call.attributes),
-    documentation: documentationFromRaw(call.documentation),
+    name: nameFromRaw($, call.name),
+    namespace: namespaceFromRaw($, call.name),
+    request: tableFromRaw($, root, call.request),
+    response: tableFromRaw($, root, call.response),
+    attributes: attributesFromRaw($, call.attributes),
+    documentation: documentationFromRaw($, call.documentation),
   });
 }
 
 export function callsFromRaw(
+  $: Raw.Schema,
   root: string,
   calls: Raw.ServiceCalls,
 ): ServiceCalls {
-  return calls.map((call) => callFromRaw(root, call));
+  return calls.map((call) => callFromRaw($, root, call));
 }
 
 export function serviceFromRaw(
+  $: Raw.Schema,
   root: string,
   service: Raw.Service,
 ): Service {
   return ({
-    name: nameFromRaw(service.name),
-    namespace: namespaceFromRaw(service.name),
-    calls: callsFromRaw(root, service.calls),
-    attributes: attributesFromRaw(service.attributes),
-    documentation: documentationFromRaw(service.documentation),
-    file: fileFromRaw(root, service.declarationFile),
+    name: nameFromRaw($, service.name),
+    namespace: namespaceFromRaw($, service.name),
+    calls: callsFromRaw($, root, service.calls),
+    attributes: attributesFromRaw($, service.attributes),
+    documentation: documentationFromRaw($, service.documentation),
+    file: fileFromRaw($, root, service.declarationFile),
   });
 }
 
 export function servicesFromRaw(
+  $: Raw.Schema,
   root: string,
   services: Raw.Services,
 ): Services {
-  return services.map((service) => serviceFromRaw(root, service));
+  return services.map((service) => serviceFromRaw($, root, service));
 }
 
-export async function fromFile(file: string): Promise<Schema> {
+export async function fromFile(
+  file: string,
+): Promise<Schema> {
   file = path.resolve(file);
 
   const raw = await Raw.fromFile(file);
@@ -368,11 +424,11 @@ export async function fromFile(file: string): Promise<Schema> {
 
   const enums = raw.enums
     .filter((item) => !item.isUnion)
-    .map((item) => enumFromRaw(rootDir, item));
+    .map((item) => enumFromRaw(raw, rootDir, item));
 
   const unions = raw.enums
     .filter((item) => item.isUnion)
-    .map((item) => enumFromRaw(rootDir, item));
+    .map((item) => enumFromRaw(raw, rootDir, item));
 
   const meta: z.output<typeof Meta> = {
     header: raw.fileIdent,
@@ -466,19 +522,19 @@ export async function fromFile(file: string): Promise<Schema> {
 
   const files = sortFiles(file, raw.fbsFiles.map(convertIncludedFile));
 
-  const objects = raw.objects.map((item) => tableFromRaw(rootDir, item));
+  const objects = raw.objects.map((item) => tableFromRaw(raw, rootDir, item));
 
   const structs = raw.objects
     .filter((item) => item.isStruct)
-    .map((table) => tableFromRaw(rootDir, table));
+    .map((table) => tableFromRaw(raw, rootDir, table));
 
   const tables = raw.objects
     .filter((item) => !item.isStruct)
-    .map((table) => tableFromRaw(rootDir, table));
+    .map((table) => tableFromRaw(raw, rootDir, table));
 
-  const root = raw.rootTable ? tableFromRaw(rootDir, raw.rootTable) : null;
+  const root = raw.rootTable ? tableFromRaw(raw, rootDir, raw.rootTable) : null;
 
-  const services = servicesFromRaw(rootDir, raw.services);
+  const services = servicesFromRaw(raw, rootDir, raw.services);
 
   return Schema.parse({
     meta, // ok
