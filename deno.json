@@ -1,6 +1,6 @@
 {
   "name": "@linefusion/flatty",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "license": "MIT",
   "publish": {
     "exclude": [".vscode", "build", "scripts", "examples"]
