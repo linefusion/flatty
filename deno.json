@@ -1,6 +1,6 @@
 {
   "name": "@linefusion/flatty",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "license": "MIT",
   "publish": {
     "exclude": [
@@ -121,7 +121,6 @@
     "@david/dax": "jsr:@david/dax@0.44.1",
     "@quentinadam/zip": "jsr:@quentinadam/zip@0.1.8",
     "@eta-dev/eta": "jsr:@eta-dev/eta@3.5.0",
-
     "@swc/wasm": "npm:@swc/wasm@1.15.3",
     "@vento/vento": "jsr:@vento/vento@1.14.0",
     "flatbuffers": "npm:flatbuffers@25.9.23",
