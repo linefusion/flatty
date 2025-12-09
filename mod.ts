@@ -1,9 +1,10 @@
+import { log } from "./logger.ts";
+import { Command } from "@cliffy/command";
+
 import * as fs from "@std/fs";
 import * as path from "@std/path";
 import * as flatbuffers from "./flatbuffers/mod.ts";
 import * as metadata from "./metadata.ts";
-import { log } from "./logger.ts";
-import { Command } from "@cliffy/command";
 import type { Schema } from "./flatbuffers/schema/parser.ts";
 import * as generator from "./generator.ts";
 
@@ -19,12 +20,12 @@ export type * from "./logger.ts";
 import * as std from "./std.ts";
 import * as templates from "./templates.ts";
 
-//import swc from "@swc/wasm";
+import swc from "@swc/wasm";
 
-import * as esbuild from "esbuild";
-import { denoPlugins } from "esbuild_deno_loader";
+import deno from "./deno.json" with { type: "json" };
+import $ from "@david/dax";
 
-//import { inspect } from "node:util";
+const externals = Object.keys(deno.imports);
 
 /**
  * Finds exactly one file from a given root directory.
@@ -228,21 +229,138 @@ const main = new Command()
       });
     };
 
-    const compileSchema = async (schemaPath: string, ...args: string[]) => {
+    const compileSchema = async (
+      schemaPath: string,
+      ...args: string[]
+    ): Promise<void> => {
       await using task = log.task(`Compiling schema`);
 
-      return await flatbuffers.flatc.execute(schemaPath, ...args).then(
-        (result) => {
-          if (result.success) {
-            return result.output;
-          }
-
-          throw new Error(result.output);
-        },
-      ).catch((error) => {
+      try {
+        await flatbuffers.flatc.execute(schemaPath, ...args);
+      } catch (error) {
         task.error(error);
         throw error;
-      });
+      }
+    };
+
+    // Load generator
+    const loadGenerator = async (generatorPath: string) => {
+      await using task = log.task(
+        `Loading generator "${path.basename(generatorPath)}"`,
+      );
+
+      try {
+        const paths = {
+          denoJson: await findClosest(generatorPath, "deno.json"),
+          denoLock: await findClosest(generatorPath, "deno.lock"),
+          nodeModules: await findClosest(generatorPath, "node_modules"),
+        };
+
+        const swcOptions: swc.Options = {
+          filename: generatorPath,
+          jsc: {
+            output: {
+              charset: "utf8",
+            },
+            parser: {
+              syntax: "typescript",
+              decorators: true,
+              dynamicImport: false,
+              tsx: generatorPath.endsWith(".tsx"),
+            },
+            transform: {
+              react: {
+                runtime: "automatic",
+                importSource: "react",
+              },
+            },
+            target: "es2022",
+          },
+          module: {
+            preserveImportMeta: true,
+            allowTopLevelThis: false,
+            type: "es6",
+          },
+        };
+
+        const code: { code: string; diagnostics?: any[] } = <any> await swc
+          .transform(await Deno.readTextFile(generatorPath), swcOptions);
+
+        if (code.diagnostics?.length) {
+          log.error().write(`error`);
+          for (const diagnostic of code.diagnostics) {
+            console.error(diagnostic);
+          }
+          throw new Error("Failed to load generator");
+        }
+
+        const output = code.code;
+
+        /*
+        const externalArgs = externals.flatMap((name) => ["--external", name]);
+
+        const output = Array.from(
+          new TextEncoder().encode(
+            await $`deno bundle --format esm --packages=external ${externalArgs} ${generatorPath}`
+              .text(),
+          ),
+        ).reduce((acc, byte) => {
+          acc += String.fromCharCode(byte);
+          return acc;
+        }, "");
+
+        console.log(output);
+        */
+
+        const generate: any = await import(
+          `data:text/typescript;base64,${btoa(output)}`
+        );
+
+        if (typeof generate.default !== "function") {
+          throw new Error("Generator must have an exported default function");
+        }
+
+        return generate.default;
+      } catch (error) {
+        task.error(error);
+        throw error;
+      }
+    };
+
+    const generate = async (userGenerator: generator.Generator) => {
+      await using task = log.task(
+        `Running generator`,
+      );
+
+      try {
+        await userGenerator({
+          std,
+          log,
+          schema,
+
+          inspect(value: unknown) {
+            console.log(Deno.inspect(value, {
+              colors: true,
+              depth: 10000,
+              showHidden: true,
+              showProxy: true,
+              sorted: true,
+            }));
+          },
+
+          templates,
+
+          error: generator.error,
+
+          flatbuffers: {
+            loadSchema,
+            compileSchema,
+          },
+        });
+      } catch (error) {
+        task.error(error);
+        throw error;
+      }
     };
 
     if (schemaPath) {
@@ -260,131 +378,8 @@ const main = new Command()
       throw new Error("No generator file found");
     }
 
-    // Load generator
-    async function loadGenerator(generatorPath: string) {
-      const paths = {
-        denoJson: await findClosest(generatorPath, "deno.json"),
-        denoLock: await findClosest(generatorPath, "deno.lock"),
-        nodeModules: await findClosest(generatorPath, "node_modules"),
-      };
-
-      const result = await esbuild.build({
-        entryPoints: [path.toFileUrl(generatorPath).toString()],
-        plugins: [...denoPlugins({
-          loader: "portable",
-          configPath: paths.denoJson,
-          lockPath: paths.denoLock,
-          nodeModulesDir: "auto",
-        }) as any],
-        external: ["@linefusion/flatty"],
-        sourcemap: true,
-        bundle: true,
-        write: false,
-        format: "esm",
-        target: "esnext",
-      });
-
-      if (result.errors.length > 0) {
-        throw new Error(
-          "Esbuild bundling failed: " + JSON.stringify(result.errors),
-        );
-      }
-
-      const output = result.outputFiles[0].text;
-
-      /*
-
-      const swcOptions: swc.Options = {
-        filename: generatorPath,
-        jsc: {
-          output: {
-            charset: "utf8",
-          },
-          parser: {
-            syntax: "typescript",
-            decorators: true,
-            dynamicImport: false,
-            tsx: generatorPath.endsWith(".tsx"),
-          },
-          transform: {
-            react: {
-              runtime: "automatic",
-              importSource: "react",
-            },
-          },
-          target: "es2022",
-        },
-        module: {
-          preserveImportMeta: true,
-          allowTopLevelThis: false,
-          type: "es6",
-        },
-      };
-
-      const code: { code: string; diagnostics?: any[] } = <any> await swc
-        .transform(await Deno.readTextFile(generatorPath), swcOptions);
-
-      if (code.diagnostics?.length) {
-        log.error().write(`error`);
-        for (const diagnostic of code.diagnostics) {
-          console.error(diagnostic);
-        }
-        throw new Error("Failed to load generator");
-      }
-
-      console.log(code.code);
-
-      return;
-      */
-      const generate: any = await import(
-        `data:text/javascript;base64,${btoa(output)}`
-      );
-
-      if (typeof generate.default !== "function") {
-        throw new Error("Generator must have an exported default function");
-      }
-
-      return generate.default;
-    }
-
-    const loadingTask = log.task(
-      `Loading generator "${path.basename(generatorPath)}"`,
-    );
-
     const userGenerator = await loadGenerator(generatorPath);
-
-    loadingTask.success();
-
-    const generatingTask = log.task(
-      `Running generator`,
-    );
-
-    await userGenerator({
-      std,
-      log,
-      schema,
-
-      inspect(value: unknown) {
-        console.log(Deno.inspect(value, {
-          colors: true,
-          depth: 10000,
-          showHidden: true,
-          showProxy: true,
-          sorted: true,
-        }));
-      },
-
-      templates,
-
-      error: generator.error,
-
-      flatbuffers: {
-        loadSchema,
-        compileSchema,
-      },
-    });
-
-    generatingTask.success();
+    await generate(userGenerator);
   });
 
 export async function run() {

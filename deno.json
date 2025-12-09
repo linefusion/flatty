@@ -24,6 +24,13 @@
       ]
     }
   },
+  "unstable": [
+    "bundle",
+    "bare-node-builtins",
+    "sloppy-imports",
+    "detect-cjs",
+    "raw-imports"
+  ],
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
@@ -96,6 +103,7 @@
     "@std/streams": "jsr:@std/streams@1.0.14",
     "@std/tar": "jsr:@std/tar@0.1.9",
     "@std/testing": "jsr:@std/testing@1.0.16",
+    "@std/testing/types": "jsr:@std/testing@1.0.16/types",
     "@std/text": "jsr:@std/text@1.0.16",
     "@std/toml": "jsr:@std/toml@1.0.11",
     "@std/ulid": "jsr:@std/ulid@1.0.0",
@@ -113,6 +121,7 @@
     "@david/dax": "jsr:@david/dax@0.44.1",
     "@quentinadam/zip": "jsr:@quentinadam/zip@0.1.8",
     "@eta-dev/eta": "jsr:@eta-dev/eta@3.5.0",
+
     "@swc/wasm": "npm:@swc/wasm@1.15.3",
     "@vento/vento": "jsr:@vento/vento@1.14.0",
     "flatbuffers": "npm:flatbuffers@25.9.23",
@@ -128,8 +137,6 @@
     "tsxt": "npm:tsxt@0.0.4",
     "underscore": "npm:underscore@1.13.7",
     "handlebars": "npm:handlebars@4.7.8",
-    "zod": "npm:zod@4.1.13",
-    "esbuild": "npm:esbuild@0.27.1",
-    "esbuild_deno_loader": "jsr:@luca/esbuild-deno-loader@0.11.1"
+    "zod": "npm:zod@4.1.13"
   }
 }
