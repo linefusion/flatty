@@ -22,10 +22,9 @@ import * as templates from "./templates.ts";
 
 import swc from "@swc/wasm";
 
-import deno from "./deno.json" with { type: "json" };
-import $ from "@david/dax";
-
-const externals = Object.keys(deno.imports);
+//import deno from "./deno.json" with { type: "json" };
+//import $ from "@david/dax";
+//const externals = Object.keys(deno.imports);
 
 /**
  * Finds exactly one file from a given root directory.
@@ -155,6 +154,7 @@ async function inferFilesFromPath(value: string) {
   };
 }
 
+/*
 async function findClosest(
   from: string,
   search: string,
@@ -189,7 +189,7 @@ async function findClosest(
   return findClosest(path.dirname(from), search);
 }
 
-/*
+
 async function findClosestFileUrl(
   from: string,
   search: string,
@@ -250,11 +250,13 @@ const main = new Command()
       );
 
       try {
+        /*
         const paths = {
           denoJson: await findClosest(generatorPath, "deno.json"),
           denoLock: await findClosest(generatorPath, "deno.lock"),
           nodeModules: await findClosest(generatorPath, "node_modules"),
         };
+        */
 
         const swcOptions: swc.Options = {
           filename: generatorPath,
