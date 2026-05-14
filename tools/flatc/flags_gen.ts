@@ -176,3 +176,5 @@ Deno.writeTextFile(
   `${import.meta.dirname ?? "."}/versions/v${version}.ts`,
   code.content,
 );
+
+await $`deno fmt`;

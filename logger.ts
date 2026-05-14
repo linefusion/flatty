@@ -79,14 +79,38 @@ export class LoggerScope implements ILogger, Disposable, AsyncDisposable {
     this.logger.error(message);
     return this;
   }
+
+  debug(message?: unknown): ILogger {
+    this.logger.debug(message);
+    return this;
+  }
+
+  inspect(value?: unknown): ILogger {
+    this.logger.inspect(value);
+    return this;
+  }
 }
 
 export class Logger implements ILogger {
-  private last: (str: string) => string = colors.gray;
+  private colorizer: (str: string) => string = colors.gray;
   private readonly text: TextEncoder = new TextEncoder();
   private level: number = 0;
-
   private readonly writer = Deno.stderr;
+
+  inspect(value?: unknown): void {
+    this.newline();
+    this.writer.write(this.text.encode("\n"));
+    this.writer.write(
+      this.text.encode(Deno.inspect(value, {
+        colors: true,
+        depth: 10000,
+        showHidden: true,
+        showProxy: true,
+        sorted: true,
+      })),
+    );
+    this.writer.write(this.text.encode("\n"));
+  }
 
   tap(callback: (this: Logger, log: Logger) => void): this {
     callback.apply(log, [log]);
@@ -139,18 +163,19 @@ export class Logger implements ILogger {
     }
 
     if (this.writer && this.writer.writable) {
-      this.writer.write(this.text.encode(this.last(lines)));
+      this.writer.write(this.text.encode(this.colorizer(lines)));
     }
+
     return this;
   }
 
   line(): this {
-    this.last = colors.reset;
+    this.colorizer = colors.reset;
     return this.write("\n");
   }
 
   newline(): this {
-    this.last = colors.reset;
+    this.colorizer = colors.reset;
     return this.write("\n");
   }
 
@@ -173,10 +198,11 @@ export class Logger implements ILogger {
         this.finished = true;
         this.duration = (performance.now() - start).toFixed(2);
         this.logger
-          .neutral(`${name}... `)
-          .success("success")
-          .details(` (${this.duration}ms)`)
-          .line();
+          .neutral(
+            `${name}... ${colors.green("success")} ${
+              colors.gray(`(${this.duration}ms)`)
+            }`,
+          );
       },
       error(err: Error | unknown) {
         if (this.finished) {
@@ -185,53 +211,60 @@ export class Logger implements ILogger {
         this.finished = true;
         this.duration = (performance.now() - start).toFixed(2);
         this.logger
-          .neutral(`${name}... `)
-          .error("error")
-          .details(` (${this.duration}ms)`)
-          .line();
+          .neutral(
+            `${name}... ${colors.red("failed")} ${
+              colors.gray(`(${this.duration}ms)`)
+            }`,
+          );
         if (err instanceof Error) {
           this.logger
-            .error(err.message).line()
-            .details(err).line();
+            .error(err.message)
+            .details(err);
         } else {
-          this.logger.error(err).line();
+          this.logger.error(err);
         }
       },
     };
 
-    this.neutral(`${name}...`).line();
+    this.neutral(`${name}...`);
+
     const start = performance.now();
     return taskInstance;
   }
 
   neutral(message?: unknown): this {
-    this.last = colors.white;
-    return this.write(message);
+    this.colorizer = colors.white;
+    return this.write(message).newline();
   }
 
   details(message?: unknown): this {
-    this.last = colors.gray;
-    return this.write(message);
+    this.colorizer = colors.gray;
+    return this.write(message).newline();
   }
 
   info(message?: unknown): this {
-    this.last = colors.blue;
-    return this.write(message);
+    this.colorizer = colors.blue;
+    return this.write(message).newline();
   }
 
   success(message?: unknown): this {
-    this.last = colors.green;
-    return this.write(message);
+    this.colorizer = colors.green;
+    return this.write(message).newline();
   }
 
   warn(message?: unknown): this {
-    this.last = colors.yellow;
-    return this.write(message);
+    this.colorizer = colors.yellow;
+    return this.write(message).newline();
   }
 
   error(message?: unknown): this {
-    this.last = colors.brightRed;
-    return this.write(message);
+    this.colorizer = colors.brightRed;
+    return this.write(message).newline();
+  }
+
+  debug(message?: unknown): this {
+    this.colorizer = colors.magenta;
+    return this.write(message).newline();
   }
 }
 

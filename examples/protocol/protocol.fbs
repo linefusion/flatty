@@ -1,8 +1,29 @@
-
-table Hello {
-    asdasdasdsa: string;
+table Success {
+    result: string;
 }
 
-table World {
-    name: Hello;
+table Error {
+    reason: string;
+}
+
+union Result {
+    Success, 
+    Error
+}
+
+struct Position {
+    x: float;
+    y: float;
+    z: float;
+}
+
+table Table {
+    pos: Position;
+}
+
+table Hello {
+    primitive_a: string;
+    primitive_b: uint32;
+    tbl: Table;
+    result: Result;
 }

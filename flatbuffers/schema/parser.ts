@@ -31,24 +31,51 @@ export type Attributes = z.output<typeof Attributes>;
 export const Attributes: typeof _Attributes = _Attributes;
 
 const _TypePrimitive = z.object({
-  type: z.literal("primitive"),
-  data: z.string(),
+  kind: z.literal("primitive"),
+  name: z.string(),
 });
+export type TypePrimitive = z.output<typeof _TypePrimitive>;
+export const TypePrimitive: typeof _TypePrimitive = _TypePrimitive;
 
 const _TypeTable = z.object({
-  type: z.literal("table"),
-  data: z.lazy(() => _Table),
+  kind: z.literal("table"),
+  name: z.instanceof(str.Tokens),
+  namespace: z.instanceof(str.Tokens),
 });
+export type TypeTable = z.output<typeof _TypeTable>;
+export const TypeTable: typeof _TypeTable = _TypeTable;
 
 const _TypeStruct = z.object({
-  type: z.literal("struct"),
-  data: z.lazy(() => _Table),
+  kind: z.literal("struct"),
+  name: z.instanceof(str.Tokens),
+  namespace: z.instanceof(str.Tokens),
 });
+export type TypeStruct = z.output<typeof _TypeStruct>;
+export const TypeStruct: typeof _TypeStruct = _TypeStruct;
 
 const _TypeEnum = z.object({
-  type: z.literal("enum"),
-  data: z.lazy(() => _Enum),
+  kind: z.literal("enum"),
+  name: z.instanceof(str.Tokens),
+  namespace: z.instanceof(str.Tokens),
 });
+export type TypeEnum = z.output<typeof _TypeEnum>;
+export const TypeEnum: typeof _TypeEnum = _TypeEnum;
+
+const _TypeArray = z.object({
+  kind: z.literal("array"),
+  type: z.lazy(() => _Type),
+});
+export type TypeArray = z.output<typeof TypeArray>;
+export const TypeArray: typeof _TypeArray = _TypeArray;
+
+const _Type = z.union([
+  _TypePrimitive,
+  _TypeTable,
+  _TypeStruct,
+  _TypeEnum,
+]);
+export type Type = z.output<typeof Type>;
+export const Type: typeof _Type = _Type;
 
 const _TypeInfo = z.object({
   type: z.string(),
@@ -253,9 +280,26 @@ export function typeFromRaw(
   $: Raw.Schema,
   type: Raw.TypeInfo,
 ): z.output<typeof TypeInfo> {
-  let data: any = null;
+  let data: Type = {
+    kind: "primitive",
+    name: type.baseType,
+  };
+
   if (type.index >= 0) {
-    data = $.objects?.[type.index];
+    const obj = $.objects?.[type.index];
+    if (obj?.isStruct) {
+      data = {
+        kind: "struct",
+        name: nameFromRaw($, obj.name),
+        namespace: namespaceFromRaw($, obj.name),
+      };
+    } else {
+      data = {
+        kind: "table",
+        name: nameFromRaw($, obj.name),
+        namespace: namespaceFromRaw($, obj.name),
+      };
+    }
   }
 
   return {

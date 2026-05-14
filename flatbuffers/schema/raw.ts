@@ -173,15 +173,6 @@ export const Parser = z
   .instanceof(bfbs.Schema)
   .transform((schema) => {
     const unpacked = schema.unpack();
-    Deno.writeTextFileSync(
-      "schema.json",
-      JSON.stringify(unpacked, function (_, v) {
-        if (typeof v == "bigint") {
-          return parseInt(v.toString(), 10);
-        }
-        return v;
-      }, 2),
-    );
     return Schema.parse(unpacked);
   });
 export type Parser = z.output<typeof Parser>;
@@ -205,7 +196,7 @@ export async function fromFile(file: string): Promise<Schema> {
   );
 
   if (!output.success) {
-    throw new Error(output.output);
+    throw new Error(output.stderr);
   }
 
   const buffer = new fbs.ByteBuffer(

@@ -1,4 +1,17 @@
 import { log } from "./logger.ts";
+
+// Global handler for unhandled promise rejections
+globalThis.addEventListener("unhandledrejection", (event) => {
+  log.error("Unhandled Promise Rejection: " + event.reason);
+  // Optionally exit process or perform cleanup
+});
+
+// Global handler for uncaught exceptions
+globalThis.addEventListener("error", (event) => {
+  log.error("Uncaught Exception: " + (event.error || event.message));
+  // Optionally exit process or perform cleanup
+});
+
 import { Command } from "@cliffy/command";
 
 import * as fs from "@std/fs";
@@ -235,11 +248,10 @@ const main = new Command()
     ): Promise<void> => {
       await using task = log.task(`Compiling schema`);
 
-      try {
-        await flatbuffers.flatc.execute(schemaPath, ...args);
-      } catch (error) {
-        task.error(error);
-        throw error;
+      const result = await flatbuffers.flatc.execute(schemaPath, ...args);
+      if (!result.success) {
+        task.error("Failed to compile schema");
+        throw new Error("Failed to compile schema: " + result.stderr);
       }
     };
 
@@ -291,7 +303,7 @@ const main = new Command()
         if (code.diagnostics?.length) {
           log.error().write(`error`);
           for (const diagnostic of code.diagnostics) {
-            console.error(diagnostic);
+            log.error().write(diagnostic);
           }
           throw new Error("Failed to load generator");
         }
@@ -339,21 +351,11 @@ const main = new Command()
           std,
           log,
           schema,
-
           inspect(value: unknown) {
-            console.log(Deno.inspect(value, {
-              colors: true,
-              depth: 10000,
-              showHidden: true,
-              showProxy: true,
-              sorted: true,
-            }));
+            log.inspect(value);
           },
-
           templates,
-
           error: generator.error,
-
           flatbuffers: {
             loadSchema,
             compileSchema,
@@ -366,6 +368,7 @@ const main = new Command()
     };
 
     if (schemaPath) {
+      await using _task2 = log.task(`Loading schema`);
       schema = await loadSchema(schemaPath);
     }
 
@@ -381,7 +384,10 @@ const main = new Command()
     }
 
     const userGenerator = await loadGenerator(generatorPath);
+
     await generate(userGenerator);
+
+    log.info("Generation completed successfully");
   });
 
 export async function run() {
@@ -399,7 +405,7 @@ export async function run() {
     });
 
     await log.scope((logger) => {
-      logger.details(Deno.inspect(err, { colors: true }));
+      logger.inspect(err);
     });
   }
 }
@@ -407,6 +413,10 @@ export async function run() {
 if (import.meta.main) {
   // Cannot be awaited, hangs because of module loading
   run()
+    .then(() => {
+      log.success("Flatty finished successfully");
+      Deno.exit(0);
+    })
     .catch((err) => {
       log.error("Flatty failed to run").line();
       log.error("ERROR:").line();

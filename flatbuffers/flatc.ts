@@ -33,9 +33,28 @@ export async function assert(semver?: string) {
 }
 
 export async function execute(...args: string[]) {
-  const cmd = await $`flatc ${args}`.captureCombined(true).noThrow();
+  const flatc = await $.which("flatc");
+  if (!flatc) {
+    throw new Error("flatc is not installed");
+  }
+
+  const cmd = await $`${flatc} ${args}`.stdout("piped").stderr("piped")
+    .noThrow();
+
+  const escaped = `(${RegExp.escape(flatc)})`;
+  const regex = new RegExp(escaped, "gi");
+
+  let stdout = cmd.stdout;
+  stdout = stdout?.replaceAll(regex, "flatc") ??
+    "<empty>";
+
+  let stderr = cmd.stderr;
+  stderr = stderr?.replaceAll(regex, "flatc") ??
+    "<empty>";
+
   return {
     success: cmd.code == 0,
-    output: cmd.combined,
+    stderr,
+    stdout,
   };
 }

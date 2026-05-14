@@ -10,14 +10,14 @@
       "type": "node",
       "cwd": "${workspaceFolder}",
       "env": {},
-      "runtimeExecutable": "C:\\Users\\wolfu\\scoop\\shims\\deno.EXE",
+      "runtimeExecutable": "C:\\Users\\wolfu\\scoop\\shims\\deno.exe",
       "runtimeArgs": [
         "run",
         "--unstable",
         "--inspect-wait",
         "--allow-all",
         "mod.ts",
-        "examples/protocol"
+        "examples\\protocol"
       ],
       "attachSimplePort": 9229
     }
