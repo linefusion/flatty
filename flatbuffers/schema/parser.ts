@@ -580,16 +580,26 @@ export async function fromFile(
 
   const services = servicesFromRaw(raw, rootDir, raw.services);
 
-  return Schema.parse({
-    meta, // ok
-    features, // ok
-    enums, // ok
-    unions, // ok
-    root, // ok
-    tables, // ok
-    structs, // ok
-    services, // ok
-    objects, // ok
-    files, // ok
-  });
+  try {
+    return Schema.parse({
+      meta, // ok
+      features, // ok
+      enums, // ok
+      unions, // ok
+      root, // ok
+      tables, // ok
+      structs, // ok
+      services, // ok
+      objects, // ok
+      files, // ok
+    });
+  } catch (cause) {
+    if (cause instanceof z.ZodError) {
+      throw new Error(
+        `Processed schema failed validation:\n` + z.prettifyError(cause),
+        { cause },
+      );
+    }
+    throw cause;
+  }
 }

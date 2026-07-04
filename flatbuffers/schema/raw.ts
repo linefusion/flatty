@@ -183,28 +183,54 @@ export async function fromFile(file: string): Promise<Schema> {
   await flatc.assert();
 
   const temp = await Deno.makeTempDir();
-  const output = await flatc.execute(
-    "-b",
-    "--schema",
-    "--bfbs-builtins",
-    "--bfbs-comments",
-    "--bfbs-gen-embed",
-    "--gen-onefile",
-    "-o",
-    temp,
-    file,
-  );
+  try {
+    const output = await flatc.execute(
+      "-b",
+      "--schema",
+      "--bfbs-builtins",
+      "--bfbs-comments",
+      "--bfbs-gen-embed",
+      "--gen-onefile",
+      "-o",
+      temp,
+      file,
+    );
 
-  if (!output.success) {
-    throw new Error(output.stderr);
+    if (!output.success) {
+      throw new flatc.FlatcError(
+        output,
+        `Failed to parse ${JSON.stringify(file)}:`,
+      );
+    }
+
+    const compiled = path.join(temp, path.basename(file, ".fbs") + ".bfbs");
+
+    let buffer: fbs.ByteBuffer;
+    try {
+      buffer = new fbs.ByteBuffer(await Deno.readFile(compiled));
+    } catch (cause) {
+      throw new Error(
+        `flatc reported success but its output ${
+          JSON.stringify(compiled)
+        } could not be read`,
+        { cause },
+      );
+    }
+
+    const schema = bfbs.Schema.getRootAsSchema(buffer);
+    try {
+      return Parser.parse(schema);
+    } catch (cause) {
+      if (cause instanceof z.ZodError) {
+        throw new Error(
+          `Parsed schema has an unexpected shape (flatc version mismatch?):\n` +
+            z.prettifyError(cause),
+          { cause },
+        );
+      }
+      throw cause;
+    }
+  } finally {
+    await Deno.remove(temp, { recursive: true }).catch(() => {});
   }
-
-  const buffer = new fbs.ByteBuffer(
-    await Deno.readFile(
-      path.join(temp, path.basename(file, ".fbs") + ".bfbs"),
-    ),
-  );
-
-  const schema = bfbs.Schema.getRootAsSchema(buffer);
-  return Parser.parse(schema);
 }

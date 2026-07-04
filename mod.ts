@@ -1,19 +1,25 @@
 import { log } from "./logger.ts";
 
-// Global handler for unhandled promise rejections
+// Failures that escape the normal flow must still be reported and must
+// fail the process: build tools rely on the exit code, and the default
+// handlers would race against pending work.
 globalThis.addEventListener("unhandledrejection", (event) => {
-  log.error("Unhandled Promise Rejection: " + event.reason);
-  // Optionally exit process or perform cleanup
+  event.preventDefault();
+  log.exception(event.reason);
+  log.error("Flatty failed (unhandled promise rejection)");
+  Deno.exit(1);
 });
 
-// Global handler for uncaught exceptions
 globalThis.addEventListener("error", (event) => {
-  log.error("Uncaught Exception: " + (event.error || event.message));
-  // Optionally exit process or perform cleanup
+  event.preventDefault();
+  log.exception(event.error ?? event.message);
+  log.error("Flatty failed (uncaught exception)");
+  Deno.exit(1);
 });
 
 import { Command } from "@cliffy/command";
 
+import { encodeBase64 } from "@std/encoding/base64";
 import * as fs from "@std/fs";
 import * as path from "@std/path";
 import * as flatbuffers from "./flatbuffers/mod.ts";
@@ -222,36 +228,49 @@ const main = new Command()
     default: false,
   })
   .arguments("[path:string]")
-  .action(async (_, input) => {
+  .action(async (options, input) => {
+    log.verbose = !!options.verbose;
+
     const { generatorPath, schemaPath } = await inferFilesFromPath(
       input ?? ".",
     );
 
+    log.debug(`schema: ${schemaPath ?? "(none)"}`);
+    log.debug(`generator: ${generatorPath ?? "(none)"}`);
+
     let schema: Schema | undefined;
 
     const loadSchema = async (schemaPath: string): Promise<Schema> => {
-      await using task = log.task("Parsing schema");
+      await using task = log.task(
+        `Parsing schema "${path.basename(schemaPath)}"`,
+      );
 
-      return await flatbuffers.schema.parser.fromFile(schemaPath).then(
-        (schema) => {
-          return schema;
-        },
-      ).catch((error) => {
+      try {
+        return await flatbuffers.schema.parser.fromFile(schemaPath);
+      } catch (error) {
         task.error(error);
         throw error;
-      });
+      }
     };
 
     const compileSchema = async (
-      schemaPath: string,
+      targetSchema?: string,
       ...args: string[]
     ): Promise<void> => {
-      await using task = log.task(`Compiling schema`);
+      targetSchema = targetSchema ?? schemaPath;
 
-      const result = await flatbuffers.flatc.execute(schemaPath, ...args);
+      await using task = log.task(
+        `Compiling flatbuffers schema: ${targetSchema}.`,
+      );
+
+      const result = await flatbuffers.flatc.execute(...args, targetSchema);
       if (!result.success) {
-        task.error("Failed to compile schema");
-        throw new Error("Failed to compile schema: " + result.stderr);
+        const error = new flatbuffers.flatc.FlatcError(
+          result,
+          `Failed to compile:`,
+        );
+        task.error(error);
+        throw error;
       }
     };
 
@@ -297,15 +316,31 @@ const main = new Command()
           },
         };
 
-        const code: { code: string; diagnostics?: any[] } = <any> await swc
-          .transform(await Deno.readTextFile(generatorPath), swcOptions);
+        let code: { code: string; diagnostics?: any[] };
+        try {
+          code = <any> await swc.transform(
+            await Deno.readTextFile(generatorPath),
+            swcOptions,
+          );
+        } catch (cause) {
+          // swc reports syntax errors by throwing (often a plain string
+          // with the formatted diagnostic); keep it as the cause so it is
+          // rendered in full.
+          throw new Error(
+            `Failed to transform generator ${JSON.stringify(generatorPath)}`,
+            { cause },
+          );
+        }
 
         if (code.diagnostics?.length) {
-          log.error().write(`error`);
           for (const diagnostic of code.diagnostics) {
-            log.error().write(diagnostic);
+            log.error(diagnostic);
           }
-          throw new Error("Failed to load generator");
+          throw new Error(
+            `Failed to transform generator ${
+              JSON.stringify(generatorPath)
+            }: ${code.diagnostics.length} diagnostic(s) reported above`,
+          );
         }
 
         const output = code.code;
@@ -326,18 +361,40 @@ const main = new Command()
         console.log(output);
         */
 
-        const generate: any = await import(
-          `data:text/typescript;base64,${btoa(output)}`
-        );
+        let generate: any;
+        try {
+          // encodeBase64 handles the full UTF-8 range; btoa() would throw
+          // on any non-Latin1 character in the generator source.
+          generate = await import(
+            `data:text/typescript;base64,${encodeBase64(output)}`
+          );
+        } catch (error) {
+          // Errors from a data: URL import embed the whole base64 module
+          // in the message; swap it for the actual file path.
+          const message = (error instanceof Error ? error.message : `${error}`)
+            .replaceAll(
+              /data:text\/typescript;base64,[A-Za-z0-9+/=.]+/g,
+              JSON.stringify(generatorPath),
+            );
+          throw new Error(`Failed to load generator: ${message}`);
+        }
 
         if (typeof generate.default !== "function") {
-          throw new Error("Generator must have an exported default function");
+          throw new Error(
+            `Generator ${
+              JSON.stringify(generatorPath)
+            } must export a default function (see the "generator" helper)`,
+          );
         }
 
         return generate.default;
       } catch (error) {
-        task.error(error);
-        throw error;
+        const wrapped = error instanceof Error ? error : new Error(
+          `Failed to load generator ${JSON.stringify(generatorPath)}`,
+          { cause: error },
+        );
+        task.error(wrapped);
+        throw wrapped;
       }
     };
 
@@ -362,13 +419,24 @@ const main = new Command()
           },
         });
       } catch (error) {
-        task.error(error);
-        throw error;
+        const wrapped = error instanceof Error
+          ? error
+          : new Error("Generator failed", { cause: error });
+        // The generator module runs from a data: URL; point stack frames
+        // back at the real file so they are readable. V8 abbreviates long
+        // specifiers with "......", hence the dots in the pattern.
+        if (wrapped.stack) {
+          wrapped.stack = wrapped.stack.replaceAll(
+            /data:text\/typescript;base64,[A-Za-z0-9+/=.]+/g,
+            path.toFileUrl(generatorPath!).toString(),
+          );
+        }
+        task.error(wrapped);
+        throw wrapped;
       }
     };
 
     if (schemaPath) {
-      await using _task2 = log.task(`Loading schema`);
       schema = await loadSchema(schemaPath);
     }
 
@@ -387,40 +455,39 @@ const main = new Command()
 
     await generate(userGenerator);
 
-    log.info("Generation completed successfully");
+    log.success("Generation completed successfully");
   });
 
-export async function run() {
+/**
+ * Runs the CLI.
+ *
+ * @returns Whether the run succeeded. Errors are fully reported here; the
+ * caller only needs to translate the result into an exit code.
+ */
+export async function run(): Promise<boolean> {
   try {
     await main.parse(Deno.args);
+    return true;
   } catch (err) {
-    if (!(err instanceof Error)) {
-      throw new Error("Unknown error", { cause: err });
-    }
-
-    await log.scope((logger) => {
-      logger.error(`
-        ${err?.message ?? "Unknown error"}
-      `);
-    });
-
-    await log.scope((logger) => {
-      logger.inspect(err);
-    });
+    // No-op for errors a task already rendered; anything else (argument
+    // parsing, file discovery, ...) is rendered here.
+    log.exception(err);
+    log.error("Flatty failed");
+    return false;
   }
 }
 
 if (import.meta.main) {
-  // Cannot be awaited, hangs because of module loading
+  // Cannot be awaited at the top level (pending module work keeps the event
+  // loop alive), so exit explicitly. All logging is synchronous and flushed
+  // by the time these callbacks run — nothing is lost by exiting here.
   run()
-    .then(() => {
-      log.success("Flatty finished successfully");
-      Deno.exit(0);
+    .then((success) => {
+      Deno.exit(success ? 0 : 1);
     })
     .catch((err) => {
-      log.error("Flatty failed to run").line();
-      log.error("ERROR:").line();
-      console.error(Deno.inspect(err, { colors: true }));
+      log.exception(err);
+      log.error("Flatty failed");
       Deno.exit(1);
     });
 }

@@ -21,6 +21,24 @@ export interface LoggerTask extends AsyncDisposable, Disposable {
   [Symbol.asyncDispose](): PromiseLike<void>;
 }
 
+/**
+ * Errors that have already been rendered to the user. Lets the top-level
+ * handler print errors exactly once, no matter how many task/catch layers
+ * they bubble through.
+ */
+const reportedErrors = new WeakSet<object>();
+
+function markReported(error: unknown) {
+  if (typeof error === "object" && error !== null) {
+    reportedErrors.add(error);
+  }
+}
+
+export function wasReported(error: unknown): boolean {
+  return typeof error === "object" && error !== null &&
+    reportedErrors.has(error);
+}
+
 export class LoggerScope implements ILogger, Disposable, AsyncDisposable {
   constructor(private readonly logger: Logger) {
     this.logger.push();
@@ -85,6 +103,11 @@ export class LoggerScope implements ILogger, Disposable, AsyncDisposable {
     return this;
   }
 
+  exception(error: unknown): ILogger {
+    this.logger.exception(error);
+    return this;
+  }
+
   inspect(value?: unknown): ILogger {
     this.logger.inspect(value);
     return this;
@@ -97,10 +120,32 @@ export class Logger implements ILogger {
   private level: number = 0;
   private readonly writer = Deno.stderr;
 
+  /**
+   * When enabled, errors include stack traces and executed commands are
+   * logged. Toggled by the CLI `--verbose` flag.
+   */
+  verbose: boolean = false;
+
+  /**
+   * Writes bytes synchronously and completely. Logging must never race
+   * against `Deno.exit()`: async writes that are still queued when the
+   * process exits are silently dropped, which loses error output.
+   */
+  private writeBytes(bytes: Uint8Array): void {
+    try {
+      let written = 0;
+      while (written < bytes.length) {
+        written += this.writer.writeSync(bytes.subarray(written));
+      }
+    } catch {
+      // stderr is closed or broken; there is nowhere left to report to.
+    }
+  }
+
   inspect(value?: unknown): void {
     this.newline();
-    this.writer.write(this.text.encode("\n"));
-    this.writer.write(
+    this.writeBytes(this.text.encode("\n"));
+    this.writeBytes(
       this.text.encode(Deno.inspect(value, {
         colors: true,
         depth: 10000,
@@ -109,7 +154,7 @@ export class Logger implements ILogger {
         sorted: true,
       })),
     );
-    this.writer.write(this.text.encode("\n"));
+    this.writeBytes(this.text.encode("\n"));
   }
 
   tap(callback: (this: Logger, log: Logger) => void): this {
@@ -141,7 +186,9 @@ export class Logger implements ILogger {
   }
 
   write(message?: unknown): this {
-    if (!message) {
+    // Only skip absent values: empty strings, `0` and `false` are still
+    // meaningful output (an error with an empty message must not vanish).
+    if (message === undefined || message === null || message === "") {
       return this;
     }
 
@@ -162,9 +209,7 @@ export class Logger implements ILogger {
       lines = "\n";
     }
 
-    if (this.writer && this.writer.writable) {
-      this.writer.write(this.text.encode(this.colorizer(lines)));
-    }
+    this.writeBytes(this.text.encode(this.colorizer(lines)));
 
     return this;
   }
@@ -216,12 +261,8 @@ export class Logger implements ILogger {
               colors.gray(`(${this.duration}ms)`)
             }`,
           );
-        if (err instanceof Error) {
-          this.logger
-            .error(err.message)
-            .details(err);
-        } else {
-          this.logger.error(err);
+        if (err !== undefined) {
+          this.logger.exception(err);
         }
       },
     };
@@ -263,8 +304,71 @@ export class Logger implements ILogger {
   }
 
   debug(message?: unknown): this {
+    if (!this.verbose) {
+      return this;
+    }
     this.colorizer = colors.magenta;
     return this.write(message).newline();
+  }
+
+  /**
+   * Renders an error (message, cause chain and, in verbose mode, stack
+   * traces) exactly once: re-rendering the same error object is a no-op, so
+   * every layer that sees an error can safely report it without spamming
+   * the user with duplicates.
+   */
+  exception(error: unknown): this {
+    if (wasReported(error)) {
+      return this;
+    }
+    markReported(error);
+
+    if (!(error instanceof Error)) {
+      this.error(
+        typeof error === "string"
+          ? error
+          : Deno.inspect(error, { colors: true, depth: 10 }),
+      );
+      return this;
+    }
+
+    const message = error.message.replace(/^\s*\n+/, "").trimEnd();
+    if (message) {
+      this.error(message);
+    } else {
+      this.error(`${error.name} (no message)`);
+    }
+
+    if (this.verbose && error.stack) {
+      const stack = error.stack.split("\n")
+        .filter((line) => /^\s*at\s/.test(line))
+        // Collapse inline module sources (data: URLs) that would otherwise
+        // fill the screen with base64.
+        .map((line) =>
+          line.trim().replace(
+            /data:[^;,)\s]+;base64,[A-Za-z0-9+/=.]{24,}/g,
+            "data:<inline module>",
+          )
+        )
+        .join("\n");
+      if (stack) {
+        this.details(stack);
+      }
+    } else if (!this.verbose) {
+      this.details("(run with --verbose for stack traces)");
+    }
+
+    if (error.cause !== undefined && error.cause !== null) {
+      this.details("caused by:");
+      this.push();
+      try {
+        this.exception(error.cause);
+      } finally {
+        this.pop();
+      }
+    }
+
+    return this;
   }
 }
 
